@@ -25,6 +25,20 @@
     border-radius:14px;box-shadow:0 0 0 100vmax rgba(0,0,0,.35);pointer-events:none}
   .roi::after{content:'place food here';position:absolute;bottom:6px;left:0;right:0;text-align:center;
     font-size:11px;color:rgba(255,255,255,.85)}
+  .stage::before{content:'';position:absolute;top:0;left:0;right:0;height:70px;z-index:2;pointer-events:none;
+    background:linear-gradient(rgba(4,10,16,.6),transparent)}
+  .brandmark{position:absolute;top:11px;left:13px;z-index:3;display:flex;align-items:center;gap:8px;pointer-events:none}
+  .brandmark .wm{font-family:'Chakra Petch',var(--brandfb);font-weight:700;letter-spacing:2px;font-size:15px;
+    color:#eafff5;line-height:1;text-shadow:0 1px 5px rgba(0,0,0,.7)}
+  .brandmark .eng{font-size:9px;letter-spacing:1.5px;color:#9fe9c5;text-transform:uppercase;margin-top:2px}
+  .scanline{position:absolute;left:6%;right:6%;top:8%;height:2px;z-index:4;opacity:0;pointer-events:none;
+    background:linear-gradient(90deg,transparent,#7fe6b0,transparent);box-shadow:0 0 14px 2px rgba(63,206,143,.7)}
+  .stage.scanning .scanline{animation:sweep 1.1s ease-in-out infinite}
+  @keyframes sweep{0%{opacity:0;top:10%}12%,88%{opacity:1}50%{top:88%}100%{opacity:0;top:10%}}
+  .scanlabel{position:absolute;bottom:12px;left:0;right:0;text-align:center;z-index:4;opacity:0;pointer-events:none;
+    font-family:'Chakra Petch',var(--brandfb);font-size:11px;letter-spacing:4px;color:#7fe6b0;text-shadow:0 0 8px rgba(36,160,107,.8)}
+  .stage.scanning .scanlabel{opacity:1;animation:blink 1.1s ease-in-out infinite}
+  @keyframes blink{50%{opacity:.4}}
   .controls{display:flex;gap:10px;align-items:center}
   input[type=number]{flex:0 0 96px;background:var(--panel);border:1px solid var(--line);color:var(--ink);
     border-radius:12px;padding:12px;font-size:16px}
@@ -123,22 +137,23 @@
 </div>
 
 <div id="app">
-  <header>
-    <svg viewBox="0 0 68 58" width="44" height="38" style="flex:none">
-      <path d="M6 27 Q34 6 62 27" fill="none" stroke="#24a06b" stroke-width="4.2" stroke-linecap="round"/>
-      <path d="M8 27 Q34 44 60 27" fill="none" stroke="#24a06b" stroke-width="3" stroke-linecap="round"/>
-      <circle cx="34" cy="27" r="10.5" fill="#143a63" stroke="#24a06b" stroke-width="2.6"/>
-      <rect x="30" y="23" width="8" height="8" rx="1.4" fill="none" stroke="#46c98d" stroke-width="1.4"/>
-      <circle cx="40" cy="20.5" r="1.7" fill="#eafff5"/>
-      <path d="M17 42 Q34 54 51 42" fill="none" stroke="#143a63" stroke-width="3.4" stroke-linecap="round"/>
-    </svg>
-    <div><h1>CalEyeZ</h1><div class="sub">AI food tracking · <span id="epTag">—</span></div></div>
-  </header>
-
-  <div class="stage">
+  <div class="stage" id="stage">
     <video id="cam" autoplay playsinline muted></video>
     <img id="shot">
     <div class="roi"></div>
+    <div class="brandmark">
+      <svg viewBox="0 0 68 58" width="30" height="26" style="flex:none">
+        <path d="M6 27 Q34 6 62 27" fill="none" stroke="#3fce8f" stroke-width="4.2" stroke-linecap="round"/>
+        <path d="M8 27 Q34 44 60 27" fill="none" stroke="#3fce8f" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="34" cy="27" r="10.5" fill="#0d243d" stroke="#3fce8f" stroke-width="2.6"/>
+        <rect x="30" y="23" width="8" height="8" rx="1.4" fill="none" stroke="#7fe6b0" stroke-width="1.4"/>
+        <circle cx="40" cy="20.5" r="1.7" fill="#eafff5"/>
+        <path d="M17 42 Q34 54 51 42" fill="none" stroke="#eafff5" stroke-width="3.4" stroke-linecap="round" opacity=".9"/>
+      </svg>
+      <div><div class="wm">CalEyeZ</div><div class="eng" id="epTag">—</div></div>
+    </div>
+    <div class="scanline"></div>
+    <div class="scanlabel">SCANNING</div>
   </div>
 
   <div class="controls">
@@ -281,7 +296,8 @@ async function analyze(){
     $("shot").style.display='block';$("cam").style.display='none';$("retake").style.display='';frozen=true;
     await new Promise(r=>{$("shot").onload=r; if($("shot").complete)r();});
   }
-  $("status").textContent='analyzing…';
+  $("status").textContent='analyzing…'; $("stage").classList.add('scanning');
+  await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));  // let the scan animation paint
   const go=await G.run({[G.inputNames[0]]:tensorFromCanvas(drawROI(G_SZ),G_SZ)});
   const io=await I.run({[I.inputNames[0]]:tensorFromCanvas(drawROI(I_SZ),I_SZ)});
   const g=feats(Object.values(go)[0].data, namesG, null);
@@ -301,6 +317,7 @@ async function analyze(){
   last={chosen, routeI, pIsr, confident, abstain};
   render(last);
   if(!abstain){ await ensureNutrition(chosen.label); render(last); }   // fill USDA if not in local DB
+  $("stage").classList.remove('scanning');
   $("status").textContent='done'; $("analyze").textContent='📷 New photo';
 }
 let last=null;
@@ -345,10 +362,11 @@ async function startCam(){
 }
 $("switchCam").onclick=async()=>{if(devices.length>1){camIdx=(camIdx+1)%devices.length;await startCam();}};
 function retake(){frozen=false;$("shot").style.display='none';$("cam").style.display='';$("retake").style.display='none';
+  $("stage").classList.remove('scanning');
   $("result").classList.remove('show');$("analyze").textContent='Analyze';$("status").textContent='ready';last=null;}
 $("retake").onclick=retake;
 $("analyze").onclick=()=>{ if(frozen) retake();
-  else analyze().catch(e=>{$("status").textContent='err: '+e.message;alert(e.message);}); };
+  else analyze().catch(e=>{$("stage").classList.remove('scanning');$("status").textContent='err: '+e.message;alert(e.message);}); };
 $("grams").oninput=()=>{ if(last) render(last); };   // recompute nutrition only, no re-inference
 
 // ---- BLE scale (SWAN): same decode as scripts/ble/scale_reader.py ----
