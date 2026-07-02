@@ -111,6 +111,7 @@
 <script>
 const $=id=>document.getElementById(id);
 ort.env.wasm.wasmPaths="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/";ort.env.wasm.numThreads=1;
+const MODEL_BASE="https://raz-dv-ee.github.io/CalEyeZ/webmodels/";
 const G_SZ=320,I_SZ=224,ROI_FRAC=0.60,GATE_G=0.55,GATE_I=0.60,BOTH_UNSURE=0.50,ARB_BAND=0.15;
 const USDA_PROXY="";  // same as the app: set to your Cloudflare Worker URL to enable live USDA
 const FEATS=['g_conf1','g_conf2','g_conf3','g_conf4','g_conf5','g_entropy','g_margin',
@@ -125,10 +126,10 @@ const pretty=s=>s.replace(/_/g,' ');
 
 async function boot(){
   $("epTag").textContent='WASM · fp32-accurate';
-  G=await mk('models/global_fp16.onnx');I=await mk('models/israeli_fp16.onnx');
-  ARB=await (await fetch('models/arbiter_trees.json')).json();
-  namesG=await (await fetch('models/global_names.json')).json();
-  namesI=await (await fetch('models/israeli_names.json')).json();
+  G=await mk(MODEL_BASE+'global_fp16.onnx');I=await mk(MODEL_BASE+'israeli_fp16.onnx');
+  ARB=await (await fetch(MODEL_BASE+'arbiter_trees.json')).json();
+  namesG=await (await fetch(MODEL_BASE+'global_names.json')).json();
+  namesI=await (await fetch(MODEL_BASE+'israeli_names.json')).json();
   iBg=Object.keys(namesI).find(k=>namesI[k]==='background');
   try{NUTR=await (await fetch('nutrition.json')).json();}catch(e){}
   await startCam(); $("splash").style.display='none'; $("analyze").disabled=false;

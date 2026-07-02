@@ -66,7 +66,8 @@ reports latency. Goal: median &lt; 2000&nbsp;ms. This answers "can the app work 
 const $=id=>document.getElementById(id);
 const log=m=>{$("log").textContent+="\n"+m;$("log").scrollTop=1e9;};
 ort.env.wasm.wasmPaths="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/";
-ort.env.wasm.numThreads=1;                 // single-thread: works without COOP/COEP headers
+ort.env.wasm.numThreads=1;
+const MODEL_BASE="https://raz-dv-ee.github.io/CalEyeZ/webmodels/";                 // single-thread: works without COOP/COEP headers
 $("log").textContent="device: "+navigator.userAgent;
 log("secure context: "+window.isSecureContext+"   navigator.gpu: "+(navigator.gpu?"present ✓":"MISSING ✗ (needs HTTPS or localhost)"));
 if(!window.isSecureContext) log("→ WebGPU is blocked on plain http LAN. Use the chrome://flags fix or host on HTTPS (see chat).");
@@ -88,7 +89,7 @@ $("loadBtn").onclick=async()=>{
   }
   $("modelStatus").textContent="loading both models…";
   try{
-    const base="models/", sfx=$("variant").value;
+    const base=MODEL_BASE, sfx=$("variant").value;
     const g=await loadModel(base+"global"+sfx+".onnx",ep);  G=g.sess;
     namesG=await (await fetch(base+"global_names.json")).json();
     let imsg="";
