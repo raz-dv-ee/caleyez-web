@@ -1,0 +1,7 @@
+name = "caleyez-usda"
+main = "usda_worker.js"
+compatibility_date = "2026-07-02"
+
+# Deploy:  wrangler deploy
+# Secret:  wrangler secret put USDA_KEY   (free key: https://fdc.nal.usda.gov/api-key-signup.html)
+# The USDA_KEY is a SECRET — never put it here or anywhere in the repo.
