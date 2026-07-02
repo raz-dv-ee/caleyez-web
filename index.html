@@ -43,7 +43,10 @@ reports latency. Goal: median &lt; 2000&nbsp;ms. This answers "can the app work 
     <input id="fileModel" type="file" accept=".onnx" hidden>
     <input id="fileNames" type="file" accept=".json" hidden>
   </div>
-  <div class="row"><button id="runBtn" disabled>3 · Run benchmark</button></div>
+  <div class="row">
+    <button id="oneBtn" disabled>3 · Single Analyze (like the app)</button>
+    <button class="ghost" id="runBtn" disabled>Run benchmark (6×)</button>
+  </div>
 </div>
 
 <div class="card" style="text-align:center">
@@ -92,7 +95,7 @@ $("loadBtn").onclick=async()=>{
     try{ const im=await loadModel(base+"israeli"+sfx+".onnx",ep); I=im.sess; imsg=" + israeli("+im.mb+"MB)"; }
     catch(e){ I=null; imsg=" (israeli model not found -> global-only timing)"; log("israeli load failed: "+e.message); }
     $("modelStatus").textContent="loaded ✓  global("+g.mb+"MB)"+imsg+"  in="+G.inputNames[0];
-    if(imgEl) $("runBtn").disabled=false;
+    if(imgEl){$("runBtn").disabled=false;$("oneBtn").disabled=false;}
     log("EP="+ep+"  models ready");
   }catch(e){ $("modelStatus").textContent="LOAD ERROR: "+e.message; log("load error: "+e.message); alert("Model load failed: "+e.message); }
 };
@@ -101,10 +104,10 @@ $("loadBtn").onclick=async()=>{
 $("pickImg").onclick=()=>{$("fileImg").click();};
 $("fileImg").onchange=e=>{const f=e.target.files[0];if(!f)return;const u=URL.createObjectURL(f);
   const im=new Image();im.onload=()=>{imgEl=im;$("preview").src=u;$("preview").hidden=false;
-    if(G)$("runBtn").disabled=false;log("image loaded "+im.width+"x"+im.height);};im.src=u;};
+    if(G){$("runBtn").disabled=false;$("oneBtn").disabled=false;}log("image loaded "+im.width+"x"+im.height);};im.src=u;};
 $("useCam").onclick=async()=>{try{const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
   $("cam").srcObject=s;$("cam").hidden=false;log("camera on — press Run to capture a frame");
-  imgEl="CAM";if(G)$("runBtn").disabled=false;}catch(e){log("camera error: "+e.message);alert("camera: "+e.message);}};
+  imgEl="CAM";if(G){$("runBtn").disabled=false;$("oneBtn").disabled=false;}}catch(e){log("camera error: "+e.message);alert("camera: "+e.message);}};
 
 // ---- preprocess: resize shortest edge -> sz, center-crop, /255, CHW (matches onnx export) ----
 function preprocess(src,sz){
@@ -153,5 +156,28 @@ $("runBtn").onclick=async()=>{
     $("pred").innerHTML="global says: <b>"+label+"</b> ("+(out[bi]*100).toFixed(1)+"%)"+(I?"":" · (israeli model not loaded)");
     log(`EP=${$("ep").value}  cold=${cold.toFixed(0)}ms  global=${gMed.toFixed(0)}  israeli=${iMed.toFixed(0)}  WARM-PIPELINE=${tMed.toFixed(0)}ms  wall=${(wall/1000).toFixed(1)}s (n=${N})`);
   }catch(e){ $("big").textContent="ERROR"; $("big").className="bad"; $("verdict").textContent=e.message; log("RUN ERROR: "+e.message); alert("Run failed: "+e.message); }
+};
+
+// Single Analyze: exactly one pipeline run, timed end-to-end = what one photo costs in the real app.
+let warmed=false;
+$("oneBtn").onclick=async()=>{
+  $("big").textContent="…"; $("big").className="mut"; $("verdict").textContent=""; $("pred").textContent="";
+  try{
+    if(imgEl==="CAM"){const im=document.createElement("canvas");im.width=$("cam").videoWidth;im.height=$("cam").videoHeight;
+      im.getContext("2d").drawImage($("cam"),0,0);imgEl=im;$("preview").src=im.toDataURL();$("preview").hidden=false;}
+    if(!G){alert("Load the model first (button 1).");$("big").textContent="—";return;}
+    if(!imgEl){alert("Pick an image first (button 2).");$("big").textContent="—";return;}
+    const a=performance.now();
+    const first=await infer(G,imgEl,320); if(I) await infer(I,imgEl,224);
+    const ms=performance.now()-a;
+    const out=Object.values(first)[0].data; let bi=0;for(let i=1;i<out.length;i++)if(out[i]>out[bi])bi=i;
+    const label=(namesG[bi]||namesG[String(bi)]||("class "+bi));
+    $("big").textContent=ms.toFixed(0)+" ms"; $("big").className=ms<2000?"ok":"bad";
+    $("verdict").innerHTML=warmed?"<b style='color:var(--green)'>this is one real photo (warm) — the actual app latency</b>"
+                                 :"<span class='mut'>first press = cold (includes one-time compile). Press again for the warm number.</span>";
+    $("pred").innerHTML="global says: <b>"+label+"</b> ("+(out[bi]*100).toFixed(1)+"%)";
+    log("SINGLE analyze: "+ms.toFixed(0)+"ms  ("+(warmed?"warm":"cold")+")  EP="+$("ep").value+" "+($("variant").value||"fp16"));
+    warmed=true;
+  }catch(e){ $("big").textContent="ERROR"; $("big").className="bad"; $("verdict").textContent=e.message; log("SINGLE err: "+e.message); alert("Analyze failed: "+e.message); }
 };
 </script>
