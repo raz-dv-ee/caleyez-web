@@ -2,9 +2,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>CalEyeZ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{--bg:#0b0f15;--panel:#151b24;--panel2:#1c2531;--line:#2a3440;--ink:#eaf1f8;--mut:#8b98a8;
-        --accent:#39d0c4;--blue:#58a6ff;--green:#3fb950;--amber:#d29922;--red:#f85149}
+        --accent:#39d0c4;--blue:#58a6ff;--green:#3fb950;--amber:#d29922;--red:#f85149;
+        --brandfb:'Segoe UI',system-ui,sans-serif}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
     font:16px/1.45 system-ui,'Segoe UI',Roboto,sans-serif;overscroll-behavior:none}
@@ -12,7 +16,8 @@
   header{display:flex;align-items:center;gap:10px}
   header .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--blue));
     display:flex;align-items:center;justify-content:center;font-weight:800;color:#04121a}
-  header h1{font-size:19px;margin:0;letter-spacing:.3px} header .sub{font-size:11px;color:var(--mut)}
+  header h1{font-size:20px;margin:0;letter-spacing:3px;text-transform:uppercase;
+    font-family:'Chakra Petch',var(--brandfb);font-weight:700} header .sub{font-size:11px;color:var(--mut)}
   .stage{position:relative;aspect-ratio:1/1;background:#000;border-radius:18px;overflow:hidden;border:1px solid var(--line)}
   video,#shot{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
   #shot{display:none;object-fit:contain;background:#000}
@@ -42,21 +47,75 @@
   .foot{font-size:11px;color:var(--mut);text-align:center;margin-top:auto;padding-top:6px}
   #splash{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;
     justify-content:center;gap:16px;z-index:50}
-  #splash .logo{width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,var(--accent),var(--blue));
-    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:28px;color:#04121a}
-  .spin{width:26px;height:26px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite}
-  @keyframes sp{to{transform:rotate(360deg)}} #splash .t{color:var(--mut);font-size:14px}
+  #splash{background:radial-gradient(120% 90% at 50% 38%,#101a24 0%,#0a0e14 60%,#070a0f 100%)}
+  #splash .brand{font-family:'Chakra Petch',var(--brandfb);font-weight:700;font-size:30px;letter-spacing:6px;
+    text-transform:uppercase;background:linear-gradient(180deg,#bff8ef,#39d0c4);-webkit-background-clip:text;
+    background-clip:text;color:transparent;margin-top:4px}
+  #splash .t{color:var(--mut);font-size:12.5px;letter-spacing:3px;text-transform:uppercase;font-family:'Chakra Petch',var(--brandfb)}
+  /* ---- animated eye scanner ---- */
+  .eye{width:150px;height:150px;filter:drop-shadow(0 0 18px rgba(57,208,196,.25))}
+  .eye .lid{stroke-dasharray:360;stroke-dashoffset:360;animation:draw 1.1s ease forwards}
+  @keyframes draw{to{stroke-dashoffset:0}}
+  .eye .iris{transform-box:fill-box;transform-origin:center;transform:scale(0);
+    animation:irisIn .7s .5s cubic-bezier(.2,.8,.2,1) forwards, irisPulse 2.4s 1.3s ease-in-out infinite}
+  @keyframes irisIn{to{transform:scale(1)}}
+  @keyframes irisPulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.35)}}
+  .eye .ring{transform-box:fill-box;transform-origin:center;opacity:0}
+  .eye .r1{animation:ripple 2.4s 1.3s ease-out infinite}
+  .eye .r2{animation:ripple 2.4s 2.1s ease-out infinite}
+  @keyframes ripple{0%{opacity:.6;transform:scale(1)}100%{opacity:0;transform:scale(2.1)}}
+  .eye .scan{opacity:0;animation:scan 1.6s 1.2s ease-in-out infinite}
+  @keyframes scan{0%{opacity:0;transform:translateY(50px)}15%,85%{opacity:.95}
+    50%{transform:translateY(110px)}100%{opacity:0;transform:translateY(50px)}}
+  .eye .glint{transform-box:fill-box;transform-origin:center;animation:glint 2.4s 1.3s ease-in-out infinite}
+  @keyframes glint{0%,100%{opacity:.5}50%{opacity:1}}
+  /* ---- log entries ---- */
+  .logrow{border-bottom:1px solid var(--line);padding:9px 0}
+  .logrow:last-child{border-bottom:0}
+  .logrow .lh{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .logrow .lf{text-transform:capitalize;font-weight:600}
+  .logrow .lsub{color:var(--mut);font-size:12px;font-weight:400}
+  .logrow .lk{font-weight:800;white-space:nowrap}
+  .logrow .lm{display:flex;gap:14px;margin-top:6px;font-size:12px;color:var(--mut)}
+  .logrow .lm i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;vertical-align:middle}
+  #histTotal{font-weight:700;color:var(--accent)}
 </style>
 
 <div id="splash">
-  <div class="logo">C</div>
-  <div class="spin"></div>
-  <div class="t" id="splashText">loading models…</div>
+  <svg class="eye" viewBox="0 0 160 160" aria-hidden="true">
+    <defs>
+      <radialGradient id="iris" cx="50%" cy="45%" r="55%">
+        <stop offset="0%" stop-color="#8ff5e6"/><stop offset="55%" stop-color="#39d0c4"/><stop offset="100%" stop-color="#1b8f86"/>
+      </radialGradient>
+      <clipPath id="irisClip"><circle cx="80" cy="80" r="30"/></clipPath>
+      <filter id="softglow"><feGaussianBlur stdDeviation="2.4"/></filter>
+    </defs>
+    <circle class="ring r1" cx="80" cy="80" r="30" fill="none" stroke="#39d0c4" stroke-width="1.5"/>
+    <circle class="ring r2" cx="80" cy="80" r="30" fill="none" stroke="#39d0c4" stroke-width="1.5"/>
+    <path class="lid" d="M12 80 Q80 24 148 80 Q80 136 12 80 Z" fill="none" stroke="#39d0c4" stroke-width="2.6"/>
+    <circle class="iris" cx="80" cy="80" r="30" fill="url(#iris)"/>
+    <circle cx="80" cy="80" r="13" fill="#0a0e14"/>
+    <g stroke="#9ff7ea" stroke-width="1.6" stroke-linecap="round" opacity=".9">
+      <line x1="72" y1="74" x2="88" y2="74"/><line x1="72" y1="86" x2="88" y2="86"/>
+      <line x1="76" y1="70" x2="76" y2="90"/><line x1="84" y1="70" x2="84" y2="90"/>
+    </g>
+    <circle class="glint" cx="94" cy="66" r="2.6" fill="#eafffb"/>
+    <g clip-path="url(#irisClip)">
+      <rect class="scan" x="48" y="0" width="64" height="3.5" fill="#8ff5e6" filter="url(#softglow)"/>
+    </g>
+  </svg>
+  <div class="brand">CalEyeZ</div>
+  <div class="t" id="splashText">initializing optics…</div>
 </div>
 
 <div id="app">
   <header>
-    <div class="logo">C</div>
+    <svg viewBox="0 0 64 64" width="36" height="36" style="flex:none">
+      <rect width="64" height="64" rx="15" fill="#101a24" stroke="#243040"/>
+      <path d="M7 32 Q32 11 57 32 Q32 53 7 32 Z" fill="none" stroke="#39d0c4" stroke-width="2.6"/>
+      <circle cx="32" cy="32" r="12.5" fill="#39d0c4"/><circle cx="32" cy="32" r="5.6" fill="#0a0e14"/>
+      <circle cx="46.5" cy="22" r="1.6" fill="#9ff7ea"/>
+    </svg>
     <div><h1>CalEyeZ</h1><div class="sub">on-device food + calories · <span id="epTag">—</span></div></div>
   </header>
 
@@ -149,7 +208,7 @@ async function boot(){
     const ep = wantGpu ? ['webgpu','wasm'] : ['wasm'];
     const pr = 'fp16';
     $("epTag").textContent = wantGpu ? 'WebGPU (GPU)' : 'WASM · fp32-accurate';
-    $("splashText").textContent="loading models…";
+    $("splashText").textContent="loading vision models…";
     G=await mk('models/global_'+pr+'.onnx',ep);
     I=await mk('models/israeli_'+pr+'.onnx',ep);
     ARB=await (await fetch('models/arbiter_trees.json')).json();   // XGBoost trees, evaluated in JS
@@ -157,7 +216,7 @@ async function boot(){
     namesI=await (await fetch('models/israeli_names.json')).json();
     iBg=Object.keys(namesI).find(k=>namesI[k]==='background');
     NUTR=await (await fetch('nutrition.json')).json();
-    $("splashText").textContent="warming up…";
+    $("splashText").textContent="calibrating…";
     await warmup();                                    // compile kernels now so first photo is fast
     await startCam();
     $("splash").style.display='none';
@@ -329,11 +388,16 @@ function renderHistory(){
   $("histTotal").textContent=sum('kcal')+' kcal';
   $("histMacros").innerHTML=[['pro','protein'],['carb','carbs'],['fat','fat']]
     .map(([k,l])=>`<div class="macro"><b>${sum(k).toFixed(0)}g</b><span>${l}</span></div>`).join('');
-  $("histList").innerHTML=today.slice(-6).reverse().map(r=>{
+  $("histTotal").textContent='🔥 '+sum('kcal')+' kcal';
+  $("histList").innerHTML=today.slice(-8).reverse().map(r=>{
     const tm=new Date(r.ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-    return `<div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding:5px 0">
-      <span style="text-transform:capitalize">${r.food.replace(/_/g,' ')} <span style="color:var(--mut)">${r.grams}g · ${tm}</span></span>
-      <b>${r.kcal!=null?r.kcal+' kcal':'—'}</b></div>`;
+    const macros=(r.pro!=null)?`<div class="lm">
+        <span><i style="background:var(--blue)"></i>${r.pro}g protein</span>
+        <span><i style="background:var(--amber)"></i>${r.carb}g carbs</span>
+        <span><i style="background:var(--accent)"></i>${r.fat}g fat</span></div>`:'';
+    return `<div class="logrow"><div class="lh">
+        <span class="lf">${r.food.replace(/_/g,' ')} <span class="lsub">${r.grams}g · ${tm}</span></span>
+        <span class="lk">${r.kcal!=null?r.kcal+' kcal':'—'}</span></div>${macros}</div>`;
   }).join('') || '<span class="chip">no entries today</span>';
 }
 $("logBtn").onclick=logMeal;
