@@ -82,6 +82,18 @@
     <div class="meta" id="rMeta"></div>
     <div class="kcal" id="rKcal"></div>
     <div class="macros" id="rMacros"></div>
+    <button class="btn" id="logBtn" style="margin-top:12px;font-size:15px">＋ Log meal</button>
+  </div>
+
+  <div class="result" id="histCard">
+    <div style="display:flex;align-items:baseline;justify-content:space-between">
+      <b>Today</b><span class="chip" id="histTotal">0 kcal</span>
+    </div>
+    <div id="histList" style="margin-top:8px;font-size:14px"></div>
+    <div style="display:flex;gap:10px;margin-top:10px">
+      <button class="mini" id="histCsv">export CSV</button>
+      <button class="mini" id="histClear">clear</button>
+    </div>
   </div>
 
   <div class="foot">Same models & preprocessing as the desktop system · runs entirely on your device</div>
@@ -285,5 +297,41 @@ function onWeight(e){
 }
 $("scaleBtn").onclick=connectScale;
 
+// ---- meal log (on-device, localStorage) ----
+const LKEY='caleyez_log';
+const loadLog=()=>{try{return JSON.parse(localStorage.getItem(LKEY)||'[]');}catch(e){return [];}};
+const saveLog=a=>localStorage.setItem(LKEY,JSON.stringify(a));
+function logMeal(){
+  if(!last || last.abstain){ alert('Nothing to log yet — analyze a recognized food first.'); return; }
+  const g=+$("grams").value||0, nut=NUTR[last.chosen.label], r=g/100;
+  const row={ts:Date.now(), food:last.chosen.label, grams:g, expert:last.routeI?'israeli':'global',
+    kcal:(nut&&g)?Math.round(nut.kcal*r):null,
+    pro:(nut&&g)?+(nut.pro*r).toFixed(1):null, carb:(nut&&g)?+(nut.carb*r).toFixed(1):null, fat:(nut&&g)?+(nut.fat*r).toFixed(1):null};
+  const a=loadLog(); a.push(row); saveLog(a); renderHistory();
+  $("logBtn").textContent='✓ logged'; setTimeout(()=>$("logBtn").textContent='＋ Log meal',1200);
+}
+function renderHistory(){
+  const a=loadLog(), t0=new Date().setHours(0,0,0,0), today=a.filter(r=>r.ts>=t0);
+  if(!a.length){ $("histCard").classList.remove('show'); return; }
+  $("histCard").classList.add('show');
+  $("histTotal").textContent=today.reduce((s,r)=>s+(r.kcal||0),0)+' kcal';
+  $("histList").innerHTML=today.slice(-6).reverse().map(r=>{
+    const tm=new Date(r.ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    return `<div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding:5px 0">
+      <span style="text-transform:capitalize">${r.food.replace(/_/g,' ')} <span style="color:var(--mut)">${r.grams}g · ${tm}</span></span>
+      <b>${r.kcal!=null?r.kcal+' kcal':'—'}</b></div>`;
+  }).join('') || '<span class="chip">no entries today</span>';
+}
+$("logBtn").onclick=logMeal;
+$("histClear").onclick=()=>{ if(confirm('Clear all logged meals?')){saveLog([]);renderHistory();} };
+$("histCsv").onclick=()=>{
+  const a=loadLog(); if(!a.length)return;
+  const head='datetime,food,grams,expert,kcal,protein,carb,fat';
+  const rows=a.map(r=>[new Date(r.ts).toISOString(),r.food,r.grams,r.expert,r.kcal,r.pro,r.carb,r.fat].join(','));
+  const blob=new Blob([head+'\n'+rows.join('\n')],{type:'text/csv'});
+  const u=URL.createObjectURL(blob),link=document.createElement('a');link.href=u;link.download='caleyez_log.csv';link.click();
+};
+
 boot();
+renderHistory();
 </script>
