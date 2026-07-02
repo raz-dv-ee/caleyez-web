@@ -1,0 +1,230 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>CalEyeZ · Engineering Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#080c11;--panel:#111823;--panel2:#0d141d;--line:#212c39;--ink:#e8f0f7;--mut:#7f8da0;
+    --green:#24a06b;--lgreen:#46c98d;--navy:#143a63;--blue:#4d9de0;--amber:#d29922;--red:#f85149;
+    --mono:'JetBrains Mono',ui-monospace,Consolas,monospace;--brand:'Chakra Petch','Segoe UI',sans-serif}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 system-ui,'Segoe UI',sans-serif}
+  #app{max-width:720px;margin:auto;padding:14px;display:flex;flex-direction:column;gap:12px}
+  header{display:flex;align-items:center;gap:10px}
+  header h1{font-family:var(--brand);font-size:16px;letter-spacing:2px;text-transform:uppercase;margin:0;font-weight:700}
+  header .sub{font-size:10px;color:var(--mut);letter-spacing:1px}
+  header a{margin-left:auto;color:var(--lgreen);text-decoration:none;font-size:13px;border:1px solid var(--line);
+    padding:7px 12px;border-radius:10px}
+  .stage{position:relative;aspect-ratio:4/3;background:#000;border-radius:14px;overflow:hidden;border:1px solid var(--line)}
+  video,#shot{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  #shot{display:none;object-fit:contain;background:#000}
+  .roi{position:absolute;left:20%;top:13.4%;width:60%;height:80%;border:2px solid rgba(36,160,107,.9);border-radius:10px;
+    box-shadow:0 0 0 100vmax rgba(0,0,0,.32);pointer-events:none}
+  .btn{background:linear-gradient(135deg,var(--green),#178a63);color:#04121a;border:0;border-radius:12px;padding:13px;
+    font-weight:800;font-size:15px;cursor:pointer;width:100%}
+  .btn.ghost{background:var(--panel);color:var(--ink);border:1px solid var(--line);font-weight:600}
+  .row{display:flex;gap:10px}
+  h2{font-family:var(--brand);font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--lgreen);
+    margin:4px 0 2px;display:flex;align-items:center;gap:8px}
+  h2 .n{width:20px;height:20px;border-radius:6px;background:var(--green);color:#04121a;display:flex;align-items:center;
+    justify-content:center;font-size:11px;font-weight:800}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .pipe{display:flex;gap:8px;align-items:center;overflow-x:auto;padding-bottom:4px}
+  .pipe figure{margin:0;text-align:center;flex:none}
+  .pipe canvas,.pipe img{width:96px;height:96px;object-fit:cover;border-radius:8px;border:1px solid var(--line);background:#000;display:block}
+  .pipe figcaption{font:10px var(--mono);color:var(--mut);margin-top:4px}
+  .pipe .arrow{color:var(--mut);font-size:18px;flex:none}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media(max-width:560px){.two{grid-template-columns:1fr}}
+  .expert{border-top:3px solid var(--blue)} .expert.isr{border-top-color:var(--green)}
+  .expert .name{font-family:var(--brand);font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--mut)}
+  .bar{display:flex;align-items:center;gap:8px;font:12px var(--mono);margin:5px 0}
+  .bar .lab{width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bar .track{flex:1;height:8px;background:var(--panel2);border-radius:4px;overflow:hidden}
+  .bar .fill{height:100%;background:var(--blue)} .isr .bar .fill{background:var(--green)}
+  .bar .v{width:44px;text-align:right;color:var(--mut)}
+  .stat{display:flex;gap:14px;font:12px var(--mono);color:var(--mut);margin-top:8px;flex-wrap:wrap}
+  .stat b{color:var(--ink)}
+  table{width:100%;border-collapse:collapse;font:12px var(--mono)}
+  td,th{border-bottom:1px solid var(--line);padding:5px 8px;text-align:left}
+  th{color:var(--mut);font-weight:600;font-size:10px;text-transform:uppercase}
+  td.v{text-align:right;color:var(--lgreen)} tr.inter td:first-child{color:var(--amber)}
+  .big{font:800 34px var(--mono)} .big.i{color:var(--green)} .big.g{color:var(--blue)}
+  .gate{display:flex;justify-content:space-between;font:12px var(--mono);padding:5px 0;border-bottom:1px solid var(--line)}
+  .ok{color:var(--green)} .no{color:var(--red)}
+  pre{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px;font:11px var(--mono);
+    color:var(--lgreen);overflow-x:auto;margin:6px 0 0;white-space:pre-wrap;word-break:break-word}
+  #splash{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:10px;z-index:9;font-family:var(--brand);letter-spacing:3px;color:var(--mut);text-transform:uppercase;font-size:12px}
+  .spin{width:22px;height:22px;border:3px solid var(--line);border-top-color:var(--green);border-radius:50%;animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  #out{display:none;flex-direction:column;gap:12px}
+  .muted{color:var(--mut);font-size:12px}
+</style>
+
+<div id="splash"><div class="spin"></div><div id="sp">booting engine…</div></div>
+
+<div id="app">
+  <header>
+    <svg viewBox="0 0 68 58" width="34" height="30" style="flex:none">
+      <path d="M6 27 Q34 6 62 27" fill="none" stroke="#24a06b" stroke-width="4.2" stroke-linecap="round"/>
+      <path d="M8 27 Q34 44 60 27" fill="none" stroke="#24a06b" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="34" cy="27" r="10.5" fill="#143a63" stroke="#24a06b" stroke-width="2.6"/>
+      <rect x="30" y="23" width="8" height="8" rx="1.4" fill="none" stroke="#46c98d" stroke-width="1.4"/>
+      <path d="M17 42 Q34 54 51 42" fill="none" stroke="#143a63" stroke-width="3.4" stroke-linecap="round"/>
+    </svg>
+    <div><h1>Engineering Console</h1><div class="sub">every layer, one capture · <span id="epTag">—</span></div></div>
+    <a href="./">← App</a>
+  </header>
+
+  <div class="stage" id="stage">
+    <video id="cam" autoplay playsinline muted></video><img id="shot"><div class="roi"></div>
+  </div>
+  <div class="row">
+    <button class="btn" id="analyze" disabled>Capture &amp; trace</button>
+    <button class="btn ghost" id="retake" style="display:none;flex:0 0 auto">↺ live</button>
+  </div>
+
+  <div id="out">
+    <div><h2><span class="n">1</span> Preprocessing</h2>
+      <div class="card"><div class="pipe" id="pipe"></div>
+        <div class="muted" style="margin-top:8px">Central ROI (60%) → resize to each model's input → ÷255, RGB, CHW. No ImageNet norm — identical to the desktop pipeline.</div></div></div>
+
+    <div><h2><span class="n">2</span> Expert models</h2>
+      <div class="two"><div class="card expert" id="cardG"></div><div class="card expert isr" id="cardI"></div></div></div>
+
+    <div><h2><span class="n">3</span> Arbiter feature vector (20)</h2>
+      <div class="card"><table id="featTable"><thead><tr><th>feature</th><th>value</th></tr></thead><tbody></tbody></table>
+      <div class="muted" style="margin-top:6px">Amber = interaction features derived from the base signals.</div></div></div>
+
+    <div><h2><span class="n">4</span> XGBoost arbiter → routing</h2>
+      <div class="card" id="cardArb"></div></div>
+
+    <div><h2><span class="n">5</span> Nutrition lookup</h2>
+      <div class="card" id="cardNut"></div></div>
+  </div>
+</div>
+
+<canvas id="cv" hidden></canvas>
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+ort.env.wasm.wasmPaths="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/";ort.env.wasm.numThreads=1;
+const G_SZ=320,I_SZ=224,ROI_FRAC=0.60,GATE_G=0.55,GATE_I=0.60,BOTH_UNSURE=0.50,ARB_BAND=0.15;
+const USDA_PROXY="";  // same as the app: set to your Cloudflare Worker URL to enable live USDA
+const FEATS=['g_conf1','g_conf2','g_conf3','g_conf4','g_conf5','g_entropy','g_margin',
+  'i_conf1','i_conf2','i_conf3','i_conf4','i_conf5','i_entropy','i_margin','i_p_background',
+  'conf_gap','conf_ratio','entropy_gap','margin_gap','both_unsure'];
+const INTER=new Set(['conf_gap','conf_ratio','entropy_gap','margin_gap','both_unsure']);
+let G,I,ARB,namesG,namesI,iBg,NUTR={},frozen=false;
+
+const mk=async u=>ort.InferenceSession.create(await (await fetch(u)).arrayBuffer(),{executionProviders:['wasm']});
+function arbiterP(f){let m=ARB.base;for(const t of ARB.trees){let n=t["0"];while(n.length>1)n=t[f[n[0]]<n[1]?n[2]:n[3]];m+=n[0];}return 1/(1+Math.exp(-m));}
+const pretty=s=>s.replace(/_/g,' ');
+
+async function boot(){
+  $("epTag").textContent='WASM · fp32-accurate';
+  G=await mk('models/global_fp16.onnx');I=await mk('models/israeli_fp16.onnx');
+  ARB=await (await fetch('models/arbiter_trees.json')).json();
+  namesG=await (await fetch('models/global_names.json')).json();
+  namesI=await (await fetch('models/israeli_names.json')).json();
+  iBg=Object.keys(namesI).find(k=>namesI[k]==='background');
+  try{NUTR=await (await fetch('nutrition.json')).json();}catch(e){}
+  await startCam(); $("splash").style.display='none'; $("analyze").disabled=false;
+}
+// preprocess (identical to app): ROI square -> sz -> /255 RGB CHW; returns {tensor, canvas}
+function roiCanvas(sz){
+  const src=frozen?$("shot"):$("cam"), w=src.videoWidth||src.naturalWidth, h=src.videoHeight||src.naturalHeight;
+  const s=Math.round(Math.min(w,h)*ROI_FRAC),sx=Math.round((w-s)/2),sy=Math.round((h-s)/2);
+  const c=document.createElement('canvas');c.width=sz;c.height=sz;const x=c.getContext('2d');
+  x.imageSmoothingEnabled=true;x.imageSmoothingQuality='high';x.drawImage(src,sx,sy,s,s,0,0,sz,sz);return c;
+}
+function tensor(c,sz){const d=c.getContext('2d').getImageData(0,0,sz,sz).data,n=sz*sz,o=new Float32Array(3*n);
+  for(let i=0;i<n;i++){o[i]=d[i*4]/255;o[i+n]=d[i*4+1]/255;o[i+2*n]=d[i*4+2]/255;}return new ort.Tensor('float32',o,[1,3,sz,sz]);}
+function feats(pf,names,bg){const p=Array.from(pf),idx=p.map((v,j)=>[v,j]).sort((a,b)=>b[0]-a[0]);
+  const conf=[0,1,2,3,4].map(k=>idx[k]?idx[k][0]:0);let H=0;for(const v of p){const c=Math.min(Math.max(v,1e-12),1);H-=c*Math.log(c);}
+  return {label:names[idx[0][1]],conf,entropy:H,margin:conf[0]-conf[1],pbg:bg!=null?p[+bg]:0,
+    top5:[0,1,2,3,4].map(k=>[names[idx[k][1]],idx[k][0]])};}
+
+async function analyze(){
+  if(!frozen){const v=$("cam"),c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;
+    c.getContext('2d').drawImage(v,0,0);$("shot").src=c.toDataURL('image/jpeg',.92);$("shot").style.display='block';
+    $("cam").style.display='none';$("retake").style.display='';frozen=true;await new Promise(r=>{$("shot").onload=r;if($("shot").complete)r();});}
+  $("analyze").textContent='tracing…';
+  const cg=roiCanvas(G_SZ),ci=roiCanvas(I_SZ);
+  const go=await G.run({[G.inputNames[0]]:tensor(cg,G_SZ)}), io=await I.run({[I.inputNames[0]]:tensor(ci,I_SZ)});
+  const g=feats(Object.values(go)[0].data,namesG,null), i=feats(Object.values(io)[0].data,namesI,iBg);
+  const f=[g.conf[0],g.conf[1],g.conf[2],g.conf[3],g.conf[4],g.entropy,g.margin,
+    i.conf[0],i.conf[1],i.conf[2],i.conf[3],i.conf[4],i.entropy,i.margin,i.pbg,
+    g.conf[0]-i.conf[0],g.conf[0]/(i.conf[0]+1e-6),i.entropy-g.entropy,g.margin-i.margin,((g.conf[0]<0.5)&&(i.conf[0]<0.5))?1:0];
+  const pIsr=arbiterP(f), routeI=pIsr>=0.5, chosen=routeI?i:g, gate=routeI?GATE_I:GATE_G;
+  const bothUnsure=g.conf[0]<BOTH_UNSURE&&i.conf[0]<BOTH_UNSURE, arbUnsure=Math.abs(pIsr-0.5)<ARB_BAND,
+        abstain=routeI&&chosen.label==='background', confident=chosen.conf[0]>=gate&&!bothUnsure&&!arbUnsure&&!abstain;
+  renderAll({cg,ci,g,i,f,pIsr,routeI,chosen,gate,bothUnsure,arbUnsure,abstain,confident});
+  $("analyze").textContent='Capture & trace';
+}
+
+function bars(exp){return exp.top5.map(([n,c])=>`<div class="bar"><span class="lab">${pretty(n)}</span>
+  <span class="track"><span class="fill" style="width:${(c*100).toFixed(1)}%"></span></span><span class="v">${(c*100).toFixed(1)}%</span></div>`).join('');}
+
+function renderAll(r){
+  // 1 · pipeline
+  const pipe=$("pipe");pipe.innerHTML='';
+  const addFig=(node,cap)=>{const fg=document.createElement('figure');fg.appendChild(node);
+    const fc=document.createElement('figcaption');fc.textContent=cap;fg.appendChild(fc);pipe.appendChild(fg);
+    const a=document.createElement('span');a.className='arrow';a.textContent='→';pipe.appendChild(a);};
+  const oimg=new Image();oimg.src=$("shot").src;oimg.width=96;oimg.height=96;addFig(oimg,'original');
+  const roiThumb=roiCanvas(96);addFig(roiThumb,'ROI 60%');
+  r.cg.style.width='96px';r.cg.style.height='96px';addFig(r.cg,'global 320²');
+  addFig(r.ci,'israeli 224²');
+  pipe.lastChild.remove(); // drop trailing arrow
+
+  // 2 · experts
+  $("cardG").innerHTML=`<div class="name">Global · 132 classes</div>${bars(r.g)}
+    <div class="stat"><span>entropy <b>${r.g.entropy.toFixed(3)}</b></span><span>margin <b>${r.g.margin.toFixed(3)}</b></span></div>`;
+  $("cardI").innerHTML=`<div class="name">Israeli · 13 + background</div>${bars(r.i)}
+    <div class="stat"><span>entropy <b>${r.i.entropy.toFixed(3)}</b></span><span>margin <b>${r.i.margin.toFixed(3)}</b></span>
+    <span>P(bg) <b>${r.i.pbg.toFixed(3)}</b></span></div>`;
+
+  // 3 · features
+  $("featTable").querySelector('tbody').innerHTML=FEATS.map((name,k)=>{
+    const v=r.f[k], val=(name==='both_unsure')?v.toFixed(0):v.toFixed(4);
+    return `<tr class="${INTER.has(name)?'inter':''}"><td>${name}</td><td class="v">${val}</td></tr>`;}).join('');
+
+  // 4 · arbiter
+  const gate=(cond,label,detail)=>`<div class="gate"><span>${label}</span><span class="${cond?'ok':'no'}">${cond?'PASS':'FAIL'} · ${detail}</span></div>`;
+  $("cardArb").innerHTML=`
+    <div style="display:flex;align-items:center;gap:14px">
+      <div><div class="big ${r.routeI?'i':'g'}">${r.pIsr.toFixed(3)}</div><div class="muted">P(israeli)</div></div>
+      <div style="flex:1"><div style="font:800 18px var(--mono);color:${r.routeI?'var(--green)':'var(--blue)'}">
+        → ${r.routeI?'ISRAELI':'GLOBAL'} expert</div>
+        <div class="muted">threshold 0.5 · chosen "<b style="color:var(--ink)">${r.abstain?'background (abstain)':pretty(r.chosen.label)}</b>" @ ${(r.chosen.conf[0]*100).toFixed(1)}%</div></div>
+    </div>
+    <div style="margin-top:10px">
+      ${gate(r.chosen.conf[0]>=r.gate,'confidence gate',`${(r.chosen.conf[0]).toFixed(2)} ≥ ${r.gate}`)}
+      ${gate(!r.bothUnsure,'both-experts-unsure',`g${r.g.conf[0].toFixed(2)} / i${r.i.conf[0].toFixed(2)} vs ${BOTH_UNSURE}`)}
+      ${gate(!r.arbUnsure,'arbiter decisive',`|P−0.5|=${Math.abs(r.pIsr-0.5).toFixed(2)} ≥ ${ARB_BAND}`)}
+      ${gate(!r.abstain,'not background',r.abstain?'Israeli said background':'ok')}
+    </div>
+    <div class="stat"><span>final verdict <b class="${r.confident?'ok':'no'}">${r.confident?'CONFIDENT':'LOW-CONF → would defer to fallback'}</b></span></div>`;
+
+  // 5 · nutrition
+  const label=r.abstain?null:r.chosen.label, q=label?pretty(label):'—';
+  const local=label&&NUTR[label];
+  let body=`<div class="muted">query: <b style="color:var(--ink)">"${q}"</b></div>`;
+  if(local){ body+=`<pre>local DB (per 100 g): ${JSON.stringify(local)}</pre>`; }
+  else if(label&&USDA_PROXY){ body+=`<pre>GET ${USDA_PROXY}?q=${encodeURIComponent(q)}\n(response fills in the app)</pre>`; }
+  else { body+=`<pre>not in local DB${USDA_PROXY?'':' · USDA proxy not configured'} → app would query USDA / show —</pre>`; }
+  $("cardNut").innerHTML=body;
+  $("out").style.display='flex';
+}
+
+// camera
+let stream=null;
+async function startCam(){try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});$("cam").srcObject=stream;}catch(e){$("sp").textContent='camera: '+e.message;}}
+function retake(){frozen=false;$("shot").style.display='none';$("cam").style.display='';$("retake").style.display='none';$("out").style.display='none';}
+$("retake").onclick=retake;
+$("analyze").onclick=()=>{ if(frozen&&$("out").style.display==='flex'){retake();} analyze().catch(e=>{$("analyze").textContent='Capture & trace';alert(e.message);}); };
+boot();
+</script>
