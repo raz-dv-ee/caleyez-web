@@ -1,0 +1,157 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CalEyeZ — browser ONNX latency PoC</title>
+<style>
+  :root{--bg:#0d1117;--panel:#161b22;--line:#30363d;--ink:#e6edf3;--mut:#8b949e;--accent:#58a6ff;--green:#3fb950;--red:#f85149;--amber:#d29922}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,Segoe UI,sans-serif;padding:16px;max-width:760px;margin:auto}
+  h1{font-size:20px;margin:6px 0} .mut{color:var(--mut);font-size:13px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0}
+  button{background:var(--accent);color:#08111f;border:0;border-radius:8px;padding:10px 16px;font-weight:700;font-size:14px;cursor:pointer}
+  button.ghost{background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+  select,input[type=number]{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px}
+  label{font-size:13px;color:var(--mut)}
+  #big{font-size:52px;font-weight:800;line-height:1.1}
+  #big.ok{color:var(--green)} #big.bad{color:var(--red)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0}
+  img,video{max-width:100%;border-radius:8px;border:1px solid var(--line);margin-top:8px}
+  code{background:#0b0f15;padding:1px 5px;border-radius:4px}
+  #log{white-space:pre-wrap;font:12px ui-monospace,Consolas,monospace;color:var(--mut);max-height:160px;overflow:auto}
+</style>
+
+<h1>CalEyeZ — browser ONNX latency test</h1>
+<p class="mut">Loads your existing <code>global.onnx</code> in the phone/PC browser, runs real inference, and
+reports latency. Goal: median &lt; 2000&nbsp;ms. This answers "can the app work in a browser?" with a number.</p>
+
+<div class="card">
+  <div class="row">
+    <label>Execution:</label>
+    <select id="ep"><option value="wasm">WASM (CPU, universal)</option><option value="webgpu">WebGPU (Tensor GPU)</option></select>
+    <label>Precision:</label>
+    <select id="variant"><option value="_fp16">fp16 · WebGPU (26MB ea)</option><option value="_int8">int8 · WASM (13MB ea)</option></select>
+    <label>Runs:</label><input id="runs" type="number" value="6" style="width:70px">
+    <input id="imgsz" type="hidden" value="320">
+  </div>
+  <div class="row">
+    <button id="loadBtn">1 · Load model</button>
+    <span id="modelStatus" class="mut">model not loaded</span>
+  </div>
+  <div class="row">
+    <button class="ghost" id="pickImg">2 · Pick image</button>
+    <button class="ghost" id="useCam">use camera</button>
+    <input id="fileImg" type="file" accept="image/*" hidden>
+    <input id="fileModel" type="file" accept=".onnx" hidden>
+    <input id="fileNames" type="file" accept=".json" hidden>
+  </div>
+  <div class="row"><button id="runBtn" disabled>3 · Run benchmark</button></div>
+</div>
+
+<div class="card" style="text-align:center">
+  <div id="big" class="mut">—</div>
+  <div class="mut">median inference latency</div>
+  <div id="verdict" style="margin-top:8px"></div>
+  <div id="pred" style="margin-top:6px"></div>
+</div>
+
+<div class="card"><div id="log">device: —</div></div>
+<img id="preview" hidden>
+<video id="cam" hidden autoplay playsinline></video>
+<canvas id="cv" hidden></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.webgpu.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const log=m=>{$("log").textContent+="\n"+m;$("log").scrollTop=1e9;};
+ort.env.wasm.wasmPaths="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/";
+ort.env.wasm.numThreads=1;                 // single-thread: works without COOP/COEP headers
+$("log").textContent="device: "+navigator.userAgent;
+log("secure context: "+window.isSecureContext+"   navigator.gpu: "+(navigator.gpu?"present ✓":"MISSING ✗ (needs HTTPS or localhost)"));
+if(!window.isSecureContext) log("→ WebGPU is blocked on plain http LAN. Use the chrome://flags fix or host on HTTPS (see chat).");
+
+// two experts: global (320) + israeli (224). Arbiter (XGBoost) is microseconds -> ignored for latency.
+let G=null, I=null, namesG=null, imgEl=null;
+
+async function loadModel(url, ep){
+  const buf=await (await fetch(url)).arrayBuffer();
+  return {sess:await ort.InferenceSession.create(buf,{executionProviders:[ep]}), mb:(buf.byteLength/1e6).toFixed(0)};
+}
+
+$("loadBtn").onclick=async()=>{
+  const ep=$("ep").value;
+  if(ep==="webgpu" && !navigator.gpu){
+    $("modelStatus").textContent="WebGPU unavailable in this context";
+    alert("WebGPU can't run here: navigator.gpu is missing.\n\nReason: WebGPU needs a SECURE context (HTTPS or localhost). You're on http over LAN.\n\nFix: chrome://flags -> 'Insecure origins treated as secure' -> add "+location.origin+" -> Enable -> relaunch.\nOr host the page on HTTPS (GitHub Pages).");
+    return;
+  }
+  $("modelStatus").textContent="loading both models…";
+  try{
+    const base="models/", sfx=$("variant").value;
+    const g=await loadModel(base+"global"+sfx+".onnx",ep);  G=g.sess;
+    namesG=await (await fetch(base+"global_names.json")).json();
+    let imsg="";
+    try{ const im=await loadModel(base+"israeli"+sfx+".onnx",ep); I=im.sess; imsg=" + israeli("+im.mb+"MB)"; }
+    catch(e){ I=null; imsg=" (israeli model not found -> global-only timing)"; log("israeli load failed: "+e.message); }
+    $("modelStatus").textContent="loaded ✓  global("+g.mb+"MB)"+imsg+"  in="+G.inputNames[0];
+    if(imgEl) $("runBtn").disabled=false;
+    log("EP="+ep+"  models ready");
+  }catch(e){ $("modelStatus").textContent="LOAD ERROR: "+e.message; log("load error: "+e.message); alert("Model load failed: "+e.message); }
+};
+
+// ---- image sources ----
+$("pickImg").onclick=()=>{$("fileImg").click();};
+$("fileImg").onchange=e=>{const f=e.target.files[0];if(!f)return;const u=URL.createObjectURL(f);
+  const im=new Image();im.onload=()=>{imgEl=im;$("preview").src=u;$("preview").hidden=false;
+    if(G)$("runBtn").disabled=false;log("image loaded "+im.width+"x"+im.height);};im.src=u;};
+$("useCam").onclick=async()=>{try{const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
+  $("cam").srcObject=s;$("cam").hidden=false;log("camera on — press Run to capture a frame");
+  imgEl="CAM";if(G)$("runBtn").disabled=false;}catch(e){log("camera error: "+e.message);alert("camera: "+e.message);}};
+
+// ---- preprocess: resize shortest edge -> sz, center-crop, /255, CHW (matches onnx export) ----
+function preprocess(src,sz){
+  const cv=$("cv");cv.width=sz;cv.height=sz;const ctx=cv.getContext("2d");ctx.imageSmoothingEnabled=true;
+  const w=src.videoWidth||src.width, h=src.videoHeight||src.height, s=Math.min(w,h);
+  ctx.drawImage(src,(w-s)/2,(h-s)/2,s,s,0,0,sz,sz);
+  const d=ctx.getImageData(0,0,sz,sz).data, out=new Float32Array(3*sz*sz), n=sz*sz;
+  for(let i=0;i<n;i++){out[i]=d[i*4]/255;out[i+n]=d[i*4+1]/255;out[i+2*n]=d[i*4+2]/255;}
+  return new ort.Tensor("float32",out,[1,3,sz,sz]);
+}
+async function infer(sess,src,sz){const t=preprocess(sz===320?src:src,sz);return sess.run({[sess.inputNames[0]]:t});}
+
+$("runBtn").onclick=async()=>{
+  $("big").textContent="running…"; $("big").className="mut"; $("verdict").textContent=""; $("pred").textContent="";
+  try{
+    const N=+$("runs").value;
+    if(imgEl==="CAM"){const im=document.createElement("canvas");im.width=$("cam").videoWidth;im.height=$("cam").videoHeight;
+      im.getContext("2d").drawImage($("cam"),0,0);imgEl=im;$("preview").src=im.toDataURL();$("preview").hidden=false;}
+    if(!G){alert("Load the model first (button 1).");$("big").textContent="—";return;}
+    if(!imgEl){alert("Pick an image first (button 2).");$("big").textContent="—";return;}
+
+    // COLD first run (includes kernel compile on mobile) — this is the one the user "feels"
+    const wall0=performance.now();
+    const c0=performance.now(); const first=await infer(G,imgEl,320); if(I) await infer(I,imgEl,224);
+    const cold=performance.now()-c0;
+
+    const gT=[], iT=[], tot=[];
+    for(let k=0;k<N;k++){
+      const a=performance.now(); await infer(G,imgEl,320); const g=performance.now()-a; gT.push(g);
+      let it=0; if(I){const b=performance.now(); await infer(I,imgEl,224); it=performance.now()-b; iT.push(it);}
+      tot.push(g+it);
+    }
+    const med=arr=>{const s=[...arr].sort((x,y)=>x-y);return s[Math.floor(s.length/2)]||0;};
+    const gMed=med(gT), iMed=med(iT), tMed=med(tot);
+
+    const out=Object.values(first)[0].data; let bi=0;for(let i=1;i<out.length;i++)if(out[i]>out[bi])bi=i;
+    const label=(namesG[bi]||namesG[String(bi)]||("class "+bi));
+
+    const wall=performance.now()-wall0;
+    $("big").textContent=tMed.toFixed(0)+" ms";
+    const ok=tMed<2000; $("big").className=ok?"ok":"bad";
+    $("verdict").innerHTML=(ok?"<b style='color:var(--green)'>✓ WARM pipeline under 2 s — app viable</b>"
+                              :"<b style='color:var(--red)'>✗ warm over 2 s — quantize / use yolo11s</b>")
+      +"<br><span class='mut'>cold first run: <b>"+cold.toFixed(0)+" ms</b> (one-time; hide behind a load splash + warm-up)</span>"
+      +"<br><span class='mut'>total benchmark wall time: "+(wall/1000).toFixed(1)+" s = "+N+" repeats (not the per-photo time)</span>";
+    $("pred").innerHTML="global says: <b>"+label+"</b> ("+(out[bi]*100).toFixed(1)+"%)"+(I?"":" · (israeli model not loaded)");
+    log(`EP=${$("ep").value}  cold=${cold.toFixed(0)}ms  global=${gMed.toFixed(0)}  israeli=${iMed.toFixed(0)}  WARM-PIPELINE=${tMed.toFixed(0)}ms  wall=${(wall/1000).toFixed(1)}s (n=${N})`);
+  }catch(e){ $("big").textContent="ERROR"; $("big").className="bad"; $("verdict").textContent=e.message; log("RUN ERROR: "+e.message); alert("Run failed: "+e.message); }
+};
+</script>
