@@ -135,6 +135,7 @@ const FEATS=['g_conf1','g_conf2','g_conf3','g_conf4','g_conf5','g_entropy','g_ma
   'conf_gap','conf_ratio','entropy_gap','margin_gap','both_unsure'];
 const INTER=new Set(['conf_gap','conf_ratio','entropy_gap','margin_gap','both_unsure']);
 let G,I,ARB,namesG,namesI,iBg,NUTR={},frozen=false;
+let FOODMETA={},COOKMULT={},selSubE='',selPrepE='raw',lastLabel=null;   // prep/sub state for Section 5
 
 const mk=async u=>ort.InferenceSession.create(await (await fetch(u)).arrayBuffer(),{executionProviders:['wasm']});
 function arbiterP(f){let m=ARB.base;for(const t of ARB.trees){let n=t["0"];while(n.length>1)n=t[f[n[0]]<n[1]?n[2]:n[3]];m+=n[0];}return 1/(1+Math.exp(-m));}
@@ -148,6 +149,8 @@ async function boot(){
   namesI=await (await fetch(MODEL_BASE+'israeli_names.json')).json();
   iBg=Object.keys(namesI).find(k=>namesI[k]==='background');
   try{NUTR=await (await fetch('nutrition.json')).json();}catch(e){}
+  try{FOODMETA=await (await fetch('foodmeta.json')).json();}catch(e){}
+  try{COOKMULT=await (await fetch('cooking_multipliers.json')).json();}catch(e){}
   await startCam(); $("splash").style.display='none'; $("analyze").disabled=false;
 }
 // preprocess (identical to app): ROI square -> sz -> /255 RGB CHW; returns {tensor, canvas}
@@ -226,15 +229,75 @@ function renderAll(r){
     </div>
     <div class="stat"><span>final verdict <b class="${r.confident?'ok':'no'}">${r.confident?'CONFIDENT':'LOW-CONF → would defer to fallback'}</b></span></div>`;
 
-  // 5 · nutrition
-  const label=r.abstain?null:r.chosen.label, q=label?pretty(label):'—';
-  const local=label&&NUTR[label];
-  let body=`<div class="muted">query: <b style="color:var(--ink)">"${q}"</b></div>`;
-  if(local){ body+=`<pre>local DB (per 100 g): ${JSON.stringify(local)}</pre>`; }
-  else if(label&&USDA_PROXY){ body+=`<pre>GET ${USDA_PROXY}?q=${encodeURIComponent(q)}\n(response fills in the app)</pre>`; }
-  else { body+=`<pre>not in local DB${USDA_PROXY?'':' · USDA proxy not configured'} → app would query USDA / show —</pre>`; }
-  $("cardNut").innerHTML=body;
+  // 5 · nutrition — reset prep/sub for the new food, then resolve (async: fetches USDA candidates)
+  const label=r.abstain?null:r.chosen.label;
+  lastLabel=label; lastUSDA=undefined;
+  selSubE=''; const _m=FOODMETA[label];
+  selPrepE=(_m&&_m.prep&&_m.prep.length)?(_m.prep.includes('raw')?'raw':_m.prep[0]):'raw';
+  renderNutrition();
   $("out").style.display='flex';
+}
+
+let lastUSDA=undefined;   // undefined=not fetched, null=miss, object=hit (with _candidates on debug)
+const S_SEL='padding:6px 8px;border-radius:8px;background:var(--panel2);color:var(--ink);border:1px solid var(--line);font:12px var(--mono)';
+function onSubE(v){selSubE=v;renderNutrition();}
+function onPrepE(v){selPrepE=v;renderNutrition();}
+
+async function renderNutrition(){
+  const label=lastLabel, card=$("cardNut");
+  if(!label){ card.innerHTML=`<div class="muted">no recognized food (abstained)</div>`; return; }
+  const q=pretty(label), meta=FOODMETA[label]||{}, local=NUTR[label];
+  // fetch USDA candidates once (debug=1 -> ranked list) when there is no local entry
+  if(lastUSDA===undefined && !local && USDA_PROXY){
+    card.innerHTML=`<div class="muted">query "<b style="color:var(--ink)">${q}</b>" → USDA…</div>`;
+    try{ const rr=await fetch(USDA_PROXY+'?debug=1&q='+encodeURIComponent(q)); lastUSDA=rr.ok?await rr.json():null; }
+    catch(e){ lastUSDA=null; }
+    if(label!==lastLabel) return;   // a newer analyze superseded us
+  }
+  // base per-100g: curated sub-food > local DB > USDA
+  let base, src;
+  if(selSubE && meta.subs && meta.subs[selSubE]){ base=meta.subs[selSubE]; src='curated sub-food'; }
+  else if(local){ base=local; src='local DB'; }
+  else if(lastUSDA){ base={kcal:lastUSDA.kcal,pro:lastUSDA.pro,carb:lastUSDA.carb,fat:lastUSDA.fat}; src='USDA: '+(lastUSDA._desc||q); }
+  // controls
+  const subs=meta.subs?Object.keys(meta.subs):[];
+  let ctl='';
+  if(subs.length) ctl+=`<span class="muted">cut/type </span><select style="${S_SEL}" onchange="onSubE(this.value)"><option value="">typical</option>`+
+    subs.map(k=>`<option ${k===selSubE?'selected':''}>${k}</option>`).join('')+`</select> `;
+  if(meta.prep&&meta.prep.length) ctl+=`<span class="muted">prep </span><select style="${S_SEL}" onchange="onPrepE(this.value)">`+
+    meta.prep.map(k=>`<option value="${k}" ${k===selPrepE?'selected':''}>${k.replace(/_/g,' ')}</option>`).join('')+`</select>`;
+
+  let body=`<div class="muted">query: <b style="color:var(--ink)">"${q}"</b> · source: <b style="color:var(--ink)">${src||'—'}</b></div>`;
+  if(ctl) body+=`<div style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin:8px 0">${ctl}</div>`;
+
+  // smart-filter candidate table (only when we hit USDA in debug mode)
+  if(lastUSDA && lastUSDA._candidates){
+    body+=`<div class="muted" style="margin-top:6px">USDA smart filter — top candidates ranked (score = primary-name + token overlap; junk tokens rejected):</div>
+      <table style="margin-top:4px"><thead><tr><th>candidate</th><th style="text-align:right">score</th><th>verdict</th></tr></thead><tbody>`+
+      lastUSDA._candidates.map((c,idx)=>{
+        const chosen=c.kept&&idx===lastUSDA._candidates.findIndex(x=>x.kept);
+        const verdict=c.kept?(chosen?'<span class="ok">✓ chosen</span>':'kept'):`<span class="no">✗ ${c.reject}</span>`;
+        return `<tr><td style="${chosen?'color:var(--lgreen)':c.kept?'':'color:var(--mut)'}">${c.desc}</td>
+          <td class="v">${c.score==null?'—':c.score}</td><td>${verdict}</td></tr>`;}).join('')+`</tbody></table>`;
+  }
+
+  // prep multiplier math (cited with n + CI)
+  if(base){
+    const cm=COOKMULT[selPrepE]; let kcal=base.kcal, fat=base.fat, mathline='';
+    if(selPrepE&&selPrepE!=='raw'&&cm){
+      kcal=base.kcal*cm.factor; fat=base.fat+cm.added_fat_g;
+      mathline=`<pre>prep = ${selPrepE.replace(/_/g,' ')}
+kcal = base ${base.kcal.toFixed(0)} × ${cm.factor} (USDA cooked/raw, n=${cm.n}, CI95 ${cm.ci95[0]}–${cm.ci95[1]}) = ${kcal.toFixed(0)} /100g
+fat  = base ${base.fat.toFixed(1)} + ${cm.added_fat_g} g absorbed oil = ${fat.toFixed(1)} g /100g</pre>`;
+    } else {
+      mathline=`<pre>prep = raw/standard → base used unchanged: ${base.kcal.toFixed(0)} kcal /100g</pre>`;
+    }
+    body+=`<div class="stat" style="margin-top:8px"><span>per 100 g → <b style="color:var(--lgreen)">${kcal.toFixed(0)} kcal</b></span>
+      <span>protein <b>${(base.pro||0).toFixed(1)}</b></span><span>carb <b>${(base.carb||0).toFixed(1)}</b></span><span>fat <b>${fat.toFixed(1)}</b></span></div>${mathline}`;
+  } else {
+    body+=`<pre>not in local DB and no USDA hit → app shows —</pre>`;
+  }
+  card.innerHTML=body;
 }
 
 // 6 · BLE weight decode — same decode as the app (index.html) / scripts/ble/scale_reader.py
