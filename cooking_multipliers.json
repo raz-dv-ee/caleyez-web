@@ -1,0 +1,199 @@
+{
+  "_meta": {
+    "source": "USDA FoodData Central (Foundation + SR Legacy)",
+    "basis": "per-100g cooked/raw kcal ratio; scale weighs cooked food",
+    "pairs": 14
+  },
+  "boiled": {
+    "factor": 1.038,
+    "added_fat_g": 0.01,
+    "n": 3,
+    "sd": 0.159,
+    "ci95": [
+      0.857,
+      1.218
+    ]
+  },
+  "deep_fried": {
+    "factor": 1.988,
+    "added_fat_g": 7.3,
+    "n": 4,
+    "sd": 0.132,
+    "ci95": [
+      1.859,
+      2.117
+    ]
+  },
+  "fried": {
+    "factor": 1.471,
+    "added_fat_g": 3.46,
+    "n": 2,
+    "sd": 0.142,
+    "ci95": [
+      1.274,
+      1.668
+    ]
+  },
+  "grilled": {
+    "factor": 1.167,
+    "added_fat_g": 0.34,
+    "n": 5,
+    "sd": 0.225,
+    "ci95": [
+      0.97,
+      1.365
+    ]
+  },
+  "raw": {
+    "factor": 1.0,
+    "added_fat_g": 0.0,
+    "n": 11,
+    "sd": 0.0,
+    "ci95": [
+      1.0,
+      1.0
+    ]
+  },
+  "_per_food": [
+    {
+      "food": "potato",
+      "method": "grilled",
+      "raw_desc": "Potatoes, flesh and skin, raw",
+      "raw_kcal": 77.0,
+      "cooked_desc": "Potatoes, baked, flesh and skin, with salt",
+      "cooked_kcal": 93.0,
+      "ratio": 1.208,
+      "added_fat_g": 0.04
+    },
+    {
+      "food": "potato",
+      "method": "boiled",
+      "raw_desc": "Potatoes, flesh and skin, raw",
+      "raw_kcal": 77.0,
+      "cooked_desc": "Potatoes, boiled, cooked in skin, flesh, with salt",
+      "cooked_kcal": 87.0,
+      "ratio": 1.13,
+      "added_fat_g": 0.01
+    },
+    {
+      "food": "potato",
+      "method": "deep_fried",
+      "raw_desc": "Potatoes, flesh and skin, raw",
+      "raw_kcal": 77.0,
+      "cooked_desc": "Potatoes, french fried, all types, salt added in processing, frozen, unprepared",
+      "cooked_kcal": 147,
+      "ratio": 1.909,
+      "added_fat_g": 4.57
+    },
+    {
+      "food": "chicken breast",
+      "method": "grilled",
+      "raw_desc": "Chicken, broilers or fryers, meat only, raw",
+      "raw_kcal": 119,
+      "cooked_desc": "Chicken, broilers or fryers, breast, meat only, cooked, roasted",
+      "cooked_kcal": 165,
+      "ratio": 1.387,
+      "added_fat_g": 0.49
+    },
+    {
+      "food": "chicken breast",
+      "method": "fried",
+      "raw_desc": "Chicken, broilers or fryers, meat only, raw",
+      "raw_kcal": 119,
+      "cooked_desc": "Chicken, broilers or fryers, breast, meat only, cooked, fried",
+      "cooked_kcal": 187,
+      "ratio": 1.571,
+      "added_fat_g": 1.63
+    },
+    {
+      "food": "chicken breast",
+      "method": "deep_fried",
+      "raw_desc": "Chicken, broilers or fryers, meat only, raw",
+      "raw_kcal": 119,
+      "cooked_desc": "Chicken, broilers or fryers, breast, meat and skin, cooked, fried, batter",
+      "cooked_kcal": 260,
+      "ratio": 2.185,
+      "added_fat_g": 10.12
+    },
+    {
+      "food": "beef",
+      "method": "grilled",
+      "raw_desc": "Beef, loin, top sirloin cap steak, boneless, separable lean only, trimmed to 1/8\" fat, choice, raw",
+      "raw_kcal": 138,
+      "cooked_desc": "Beef, loin, top sirloin cap steak, boneless, separable lean only, trimmed to 1/8\" fat, choice, cooked, grilled",
+      "cooked_kcal": 189,
+      "ratio": 1.37,
+      "added_fat_g": 2.14
+    },
+    {
+      "food": "egg",
+      "method": "fried",
+      "raw_desc": "Egg, whole, raw, fresh",
+      "raw_kcal": 143,
+      "cooked_desc": "Egg, whole, cooked, fried",
+      "cooked_kcal": 196,
+      "ratio": 1.371,
+      "added_fat_g": 5.29
+    },
+    {
+      "food": "salmon",
+      "method": "grilled",
+      "raw_desc": "Fish, salmon, Atlantic, farmed, raw",
+      "raw_kcal": 208,
+      "cooked_desc": "Fish, salmon, Atlantic, farmed, cooked, dry heat",
+      "cooked_kcal": 206,
+      "ratio": 0.99,
+      "added_fat_g": -1.0
+    },
+    {
+      "food": "catfish",
+      "method": "deep_fried",
+      "raw_desc": "Fish, catfish, channel, farmed, raw",
+      "raw_kcal": 119,
+      "cooked_desc": "Fish, catfish, channel, cooked, breaded and fried",
+      "cooked_kcal": 229,
+      "ratio": 1.924,
+      "added_fat_g": 7.36
+    },
+    {
+      "food": "plantain",
+      "method": "deep_fried",
+      "raw_desc": "Plantains, yellow, raw",
+      "raw_kcal": 122,
+      "cooked_desc": "Plantains, yellow, fried, Latino restaurant",
+      "cooked_kcal": 236,
+      "ratio": 1.934,
+      "added_fat_g": 7.16
+    },
+    {
+      "food": "carrot",
+      "method": "boiled",
+      "raw_desc": "Carrots, raw",
+      "raw_kcal": 41.0,
+      "cooked_desc": "Carrots, cooked, boiled, drained, without salt",
+      "cooked_kcal": 35.0,
+      "ratio": 0.854,
+      "added_fat_g": -0.06
+    },
+    {
+      "food": "broccoli",
+      "method": "boiled",
+      "raw_desc": "Broccoli, raw",
+      "raw_kcal": 31.0,
+      "cooked_desc": "Broccoli, cooked, boiled, drained, without salt",
+      "cooked_kcal": 35.0,
+      "ratio": 1.129,
+      "added_fat_g": 0.07
+    },
+    {
+      "food": "zucchini",
+      "method": "grilled",
+      "raw_desc": "Squash, summer, zucchini, includes skin, raw",
+      "raw_kcal": 17.0,
+      "cooked_desc": "Squash, summer, zucchini, includes skin, cooked, boiled, drained, without salt",
+      "cooked_kcal": 15.0,
+      "ratio": 0.882,
+      "added_fat_g": 0.04
+    }
+  ]
+}

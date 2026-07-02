@@ -171,6 +171,7 @@
     <div class="food" id="rFood">—</div>
     <div class="meta" id="rMeta"></div>
     <div id="rAlt" style="font-size:12px;color:var(--mut);margin:-2px 0 4px"></div>
+    <div id="rControls"></div>
     <div class="kcal" id="rKcal"></div>
     <div class="macros" id="rMacros"></div>
     <button class="btn" id="logBtn" style="margin-top:12px;font-size:15px">＋ Log meal</button>
@@ -208,6 +209,7 @@ const GATE_G=0.55, GATE_I=0.60, BOTH_UNSURE=0.50, ARB_BAND=0.15;
 const USDA_PROXY="https://caleyez-usda.caleyez.workers.dev";
 // 20 features in the arbiter's training order (train_arbiter_xgb.py FEATS)
 let G=null, I=null, ARB=null, namesG=null, namesI=null, iBg=null, NUTR={}, frozen=false;
+let FOODMETA={}, COOKMULT={}, selSub='', selPrep='raw';   // prep/sub-food state (reset each analyze)
 
 // XGBoost arbiter evaluated in JS (onnxruntime-web has no TreeEnsemble op). Verified == Python to 1e-7.
 function arbiterP(f){
@@ -249,6 +251,8 @@ async function boot(){
     namesI=await (await fetch(MODEL_BASE+'israeli_names.json')).json();
     iBg=Object.keys(namesI).find(k=>namesI[k]==='background');
     NUTR=await (await fetch('nutrition.json')).json();
+    try{ FOODMETA=await (await fetch('foodmeta.json')).json(); }catch(e){ FOODMETA={}; }
+    try{ COOKMULT=await (await fetch('cooking_multipliers.json')).json(); }catch(e){ COOKMULT={}; }
     $("splashText").textContent="calibrating…";
     await warmup();                                    // compile kernels now so first photo is fast
     await startCam();
@@ -317,12 +321,42 @@ async function analyze(){
   const abstain=routeI && chosen.label==='background';
   const confident=chosen.conf[0]>=gate && !bothUnsure && !arbUnsure && !abstain;
   last={chosen, routeI, pIsr, confident, abstain};
+  selSub=''; const _pm=FOODMETA[chosen.label];                          // reset prep/sub for the new food
+  selPrep=(_pm&&_pm.prep&&_pm.prep.length)?(_pm.prep.includes('raw')?'raw':_pm.prep[0]):'raw';
   render(last);
   if(!abstain){ await ensureNutrition(chosen.label); render(last); }   // fill USDA if not in local DB
   $("stage").classList.remove('scanning');
   $("status").textContent='done'; $("analyze").textContent='📷 New photo';
 }
 let last=null;
+
+// Effective per-100g nutrition after sub-food swap + cooking-method multiplier.
+// kcal scaled by the empirically-derived factor (cooking_multipliers.json); fat gets the measured
+// added-oil grams; protein/carb grams are ~preserved (conservative). Returns {kcal,pro,carb,fat}.
+function effNut(label){
+  const m=FOODMETA[label]||{};
+  const base=(selSub && m.subs && m.subs[selSub]) ? m.subs[selSub] : NUTR[label];
+  if(!base) return null;
+  const o={kcal:base.kcal, pro:base.pro, carb:base.carb, fat:base.fat};
+  const cm=COOKMULT[selPrep];
+  if(selPrep && selPrep!=='raw' && cm){ o.kcal=o.kcal*cm.factor; o.fat=o.fat+cm.added_fat_g; }
+  return o;
+}
+// Build the conditional sub-food + prep dropdowns for a label (empty string if neither applies).
+function controlsHTML(label){
+  const m=FOODMETA[label]; if(!m) return '';
+  const S='padding:7px 9px;border-radius:9px;background:var(--card,#182233);color:inherit;border:1px solid var(--line,#2a3446);font-size:13px';
+  const L='font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px';
+  let h='';
+  const subs=m.subs?Object.keys(m.subs):[];
+  if(subs.length) h+=`<span style="${L}">cut/type</span><select style="${S}" onchange="onSub(this.value)">
+    <option value="">typical</option>`+subs.map(k=>`<option ${k===selSub?'selected':''}>${k}</option>`).join('')+`</select>`;
+  if(m.prep && m.prep.length) h+=`<span style="${L}">prep</span><select style="${S}" onchange="onPrep(this.value)">`+
+    m.prep.map(k=>`<option value="${k}" ${k===selPrep?'selected':''}>${k.replace(/_/g,' ')}</option>`).join('')+`</select>`;
+  return h?`<div style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin:8px 0">${h}</div>`:'';
+}
+function onSub(v){ selSub=v; if(last) render(last); }
+function onPrep(v){ selPrep=v; if(last) render(last); }
 
 function render({chosen, routeI, pIsr, confident, abstain}){
   const pretty=s=>s.replace(/_/g,' ');
@@ -338,10 +372,13 @@ function render({chosen, routeI, pIsr, confident, abstain}){
   const t3=(chosen.top5||[]).slice(0,3).filter(x=>x[0]).map(([n,c])=>`${pretty(n)} ${(c*100).toFixed(0)}%`).join(' · ');
   $("rAlt").textContent = t3 ? 'top guesses: '+t3 : '';
 
-  const g=+$("grams").value, key=abstain?null:chosen.label, nut=key&&NUTR[key];
+  const g=+$("grams").value, key=abstain?null:chosen.label;
+  $("rControls").innerHTML = key ? controlsHTML(key) : '';
+  const nut = key ? effNut(key) : null;
   if(nut && g>0){
     const r=g/100;
-    $("rKcal").innerHTML=`${Math.round(nut.kcal*r)} <small>kcal · ${g} g</small>`;
+    const tag = (selSub?selSub:'') + (selPrep&&selPrep!=='raw'?(selSub?' · ':'')+selPrep.replace(/_/g,' '):'');
+    $("rKcal").innerHTML=`${Math.round(nut.kcal*r)} <small>kcal · ${g} g${tag?' · '+tag:''}</small>`;
     $("rMacros").innerHTML=[['pro','protein'],['carb','carbs'],['fat','fat']]
       .map(([k,l])=>`<div class="macro"><b>${(nut[k]*r).toFixed(1)}g</b><span>${l}</span></div>`).join('');
   }else{
@@ -409,8 +446,9 @@ const loadLog=()=>{try{return JSON.parse(localStorage.getItem(LKEY)||'[]');}catc
 const saveLog=a=>localStorage.setItem(LKEY,JSON.stringify(a));
 function logMeal(){
   if(!last || last.abstain){ alert('Nothing to log yet — analyze a recognized food first.'); return; }
-  const g=+$("grams").value||0, nut=NUTR[last.chosen.label], r=g/100;
+  const g=+$("grams").value||0, nut=effNut(last.chosen.label), r=g/100;
   const row={ts:Date.now(), food:last.chosen.label, grams:g, expert:last.routeI?'israeli':'global',
+    sub:selSub||null, method:(selPrep&&selPrep!=='raw')?selPrep:null,
     kcal:(nut&&g)?Math.round(nut.kcal*r):null,
     pro:(nut&&g)?+(nut.pro*r).toFixed(1):null, carb:(nut&&g)?+(nut.carb*r).toFixed(1):null, fat:(nut&&g)?+(nut.fat*r).toFixed(1):null};
   const a=loadLog(); a.push(row); saveLog(a); renderHistory();
@@ -432,7 +470,7 @@ function renderHistory(){
         <span><i style="background:var(--amber)"></i>${r.carb}g carbs</span>
         <span><i style="background:var(--accent)"></i>${r.fat}g fat</span></div>`:'';
     return `<div class="logrow"><div class="lh">
-        <span class="lf">${r.food.replace(/_/g,' ')} <span class="lsub">${r.grams}g · ${tm}</span></span>
+        <span class="lf">${r.food.replace(/_/g,' ')} <span class="lsub">${r.sub?r.sub+' · ':''}${r.method?r.method.replace(/_/g,' ')+' · ':''}${r.grams}g · ${tm}</span></span>
         <span class="lk">${r.kcal!=null?r.kcal+' kcal':'—'}</span></div>${macros}</div>`;
   }).join('') || '<span class="chip">no entries today</span>';
 }
@@ -440,8 +478,8 @@ $("logBtn").onclick=logMeal;
 $("histClear").onclick=()=>{ if(confirm('Clear all logged meals?')){saveLog([]);renderHistory();} };
 $("histCsv").onclick=()=>{
   const a=loadLog(); if(!a.length)return;
-  const head='datetime,food,grams,expert,kcal,protein,carb,fat';
-  const rows=a.map(r=>[new Date(r.ts).toISOString(),r.food,r.grams,r.expert,r.kcal,r.pro,r.carb,r.fat].join(','));
+  const head='datetime,food,sub,method,grams,expert,kcal,protein,carb,fat';
+  const rows=a.map(r=>[new Date(r.ts).toISOString(),r.food,r.sub||'',r.method||'',r.grams,r.expert,r.kcal,r.pro,r.carb,r.fat].join(','));
   const blob=new Blob([head+'\n'+rows.join('\n')],{type:'text/csv'});
   const u=URL.createObjectURL(blob),link=document.createElement('a');link.href=u;link.download='caleyez_log.csv';link.click();
 };
