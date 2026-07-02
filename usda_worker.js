@@ -1,6 +1,8 @@
-// Cloudflare Worker: USDA FoodData Central proxy.
+// Cloudflare Worker: USDA FoodData Central proxy with a SMART FILTER.
 // The API key lives in a Worker SECRET (env.USDA_KEY) so it NEVER appears in the public web-app repo.
-// The app calls this Worker; the Worker calls USDA and returns per-100g {kcal, pro, carb, fat}.
+// The app calls this Worker; the Worker calls USDA, scores the candidates, and returns per-100g
+// {kcal, pro, carb, fat, _desc}. With ?debug=1 it also returns _candidates (the ranked list) so the
+// engineering console can show exactly why a result was chosen or rejected.
 //
 // Deploy (free) — pick ONE path:
 //   Dashboard: https://dash.cloudflare.com -> Workers & Pages -> Create Worker -> paste this -> Deploy
@@ -9,13 +11,48 @@
 //   Dashboard: Worker -> Settings -> Variables & Secrets -> add Secret  name USDA_KEY  value <your key>
 //   CLI:       wrangler secret put USDA_KEY
 //   (free key: https://fdc.nal.usda.gov/api-key-signup.html)
-// Finally set the URL in index.html + engineering.html:  const USDA_PROXY="https://xxxx.workers.dev";
-// (Optional) tighten ALLOW_ORIGIN to your Pages domain to limit who can use the proxy.
 
 const ALLOW_ORIGIN = "*";                       // e.g. "https://raz-dv-ee.github.io"
 const CACHE_TTL    = 60 * 60 * 24 * 30;         // 30 days — nutrition facts are effectively static
 // USDA nutrient IDs -> our keys. 1008/2047/2048 = energy(kcal), 1003 protein, 1005 carbs, 1004 fat.
 const NUTRIENT = { 1008: "kcal", 2047: "kcal", 2048: "kcal", 1003: "pro", 1005: "carb", 1004: "fat" };
+
+// Descriptions containing a JUNK token are rejected UNLESS the query itself asked for that token.
+// This is what stops "apple" -> "apple juice" and "tomato" -> "tomato sauce, canned".
+const CACHE_VER = "5";                             // bump to invalidate the edge cache after logic changes
+const JUNK = ["juice","drink","beverage","nectar","dried","dehydrated","chips","crisps","powder",
+  "flour","baby food","infant","strained","sauce","gravy","soup","broth","candy","candies",
+  "syrup","jam","jelly","jellied","preserve","marmalade","cocktail","pie filling","frozen novelties",
+  "topping","flavored","imitation","substitute"];
+const STOP = new Set(["and","with","in","the","of","raw","fresh","food","foods","a","or","style"]);
+
+const tokenize = s => s.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(Boolean);
+// fuzzy token match: exact, or one is a prefix of the other (handles apple/apples, potato/potatoes).
+const tmatch = (a, b) => a === b || (a.length >= 3 && b.length >= 3 && (a.startsWith(b) || b.startsWith(a)));
+const has = (tokens, t) => tokens.some(u => tmatch(t, u));
+
+// Score one candidate description against the query tokens. Higher = better; null = rejected.
+// USDA descriptions read "PrimaryName, qualifier, qualifier" (e.g. "Apples, raw" vs "Croissants, apple").
+// A query word matching the PRIMARY name is worth far more than matching a trailing qualifier, so
+// "apple" picks "Apples, raw" over "Croissants, apple".
+function scoreCandidate(desc, qTokens) {
+  const d = desc.toLowerCase();
+  for (const j of JUNK) {                                  // junk token present but not requested?
+    if (d.includes(j) && !qTokens.some(t => j.includes(t))) return { score: null, reason: "'" + j + "'" };
+  }
+  const primary = tokenize(desc.split(",")[0]);            // words before the first comma
+  const all = tokenize(desc);
+  const q = qTokens.filter(t => !STOP.has(t));
+  const need = q.length || 1;
+  let pOverlap = 0, aOverlap = 0;
+  for (const t of q) { if (has(primary, t)) pOverlap++; if (has(all, t)) aOverlap++; }
+  let score = (pOverlap / need) * 100 + (aOverlap / need) * 15;   // primary match dominates
+  if (pOverlap && primary.length) score += (pOverlap / primary.length) * 20;  // reward when the food IS
+  //   the primary name ("Apples, raw") over one where it is only part of it ("Rose-apples", "egg white")
+  if (d.includes("raw")) score += 8;                       // prefer the plain/raw form for a base food
+  score -= Math.min(all.length, 20) * 0.5;                 // gently prefer shorter, less-qualified names
+  return { score, reason: null };
+}
 
 export default {
   async fetch(req, env, ctx) {
@@ -26,36 +63,52 @@ export default {
     };
     if (req.method === "OPTIONS") return new Response(null, { headers: cors });
 
-    const q = (new URL(req.url).searchParams.get("q") || "").trim();
+    const url = new URL(req.url);
+    const q = (url.searchParams.get("q") || "").trim();
+    const debug = url.searchParams.get("debug") === "1";
     if (!q) return json(null, cors);
-    if (!env.USDA_KEY) return json(null, cors);      // not configured -> app falls back to "—"
+    if (!env.USDA_KEY) return json(null, cors);            // not configured -> app falls back to "—"
 
-    // Edge cache: key on the normalized query so repeated foods are instant and stay under USDA limits.
+    // Edge cache: key on normalized query (+debug) so repeated foods are instant and stay under limits.
     const cache = caches.default;
-    const cacheKey = new Request(new URL("https://usda-proxy/" + encodeURIComponent(q.toLowerCase())), req);
+    const cacheKey = new Request("https://usda-proxy/v" + CACHE_VER + "/" + (debug ? "d/" : "") + encodeURIComponent(q.toLowerCase()), req);
     const hit = await cache.match(cacheKey);
     if (hit) return hit;
 
     try {
-      const url = "https://api.nal.usda.gov/fdc/v1/foods/search?api_key=" + env.USDA_KEY +
-        "&pageSize=5&dataType=" + encodeURIComponent("Foundation,SR Legacy") +
+      const api = "https://api.nal.usda.gov/fdc/v1/foods/search?api_key=" + env.USDA_KEY +
+        "&pageSize=10&dataType=" + encodeURIComponent("Foundation,SR Legacy") +
         "&query=" + encodeURIComponent(q);
-      const r = await fetch(url, { cf: { cacheTtl: CACHE_TTL, cacheEverything: true } });
+      const r = await fetch(api, { cf: { cacheTtl: CACHE_TTL, cacheEverything: true } });
       if (!r.ok) return json(null, cors);
 
       const foods = ((await r.json()).foods) || [];
-      // Prefer the first result that actually carries an energy value.
-      let out = null;
+      const qTokens = tokenize(q);
+      const ranked = [];
       for (const food of foods) {
-        const o = {};
+        const macros = {};
         for (const n of food.foodNutrients || []) {
           const k = NUTRIENT[n.nutrientId];
-          if (k && o[k] == null && typeof n.value === "number") o[k] = n.value;
+          if (k && macros[k] == null && typeof n.value === "number") macros[k] = n.value;
         }
-        if (o.kcal != null) { out = o; break; }
+        const { score, reason } = scoreCandidate(food.description || "", qTokens);
+        const kept = score != null && macros.kcal != null;
+        ranked.push({ desc: food.description || "", score, kept,
+          reject: reason || (macros.kcal == null ? "no energy value" : null), macros });
       }
+      ranked.sort((a, b) => (b.kept - a.kept) || ((b.score ?? -1) - (a.score ?? -1)));
 
-      const resp = json(out, { ...cors, "Cache-Control": "public, max-age=" + CACHE_TTL });
+      const best = ranked.find(c => c.kept);
+      const out = best
+        ? { kcal: best.macros.kcal, pro: best.macros.pro ?? 0, carb: best.macros.carb ?? 0,
+            fat: best.macros.fat ?? 0, _desc: best.desc }
+        : null;
+      const payload = (debug && out)
+        ? { ...out, _candidates: ranked.map(({ desc, score, kept, reject }) =>
+            ({ desc, score: score == null ? null : +score.toFixed(1), kept, reject })) }
+        : out;
+
+      const resp = json(payload, { ...cors, "Cache-Control": "public, max-age=" + CACHE_TTL });
       if (out) ctx.waitUntil(cache.put(cacheKey, resp.clone()));   // only cache real hits
       return resp;
     } catch (e) {
