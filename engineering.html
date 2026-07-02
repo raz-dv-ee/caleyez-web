@@ -66,9 +66,12 @@
   .byte .idx{font:10px var(--mono);color:var(--mut)}
   .byte .hex{font:700 clamp(12px,3.4vw,15px) var(--mono);color:var(--ink);margin:2px 0}
   .byte .dec{font:10px var(--mono);color:var(--mut)}
+  .byte .role{font:9px var(--mono);color:var(--mut);margin-top:2px;line-height:1.1;word-break:break-word}
   .byte.lo{border-color:var(--lgreen);background:rgba(70,201,141,.10)} .byte.lo .hex{color:var(--lgreen)}
   .byte.hi{border-color:var(--blue);background:rgba(77,157,224,.10)} .byte.hi .hex{color:var(--blue)}
   .byte.carry{border-color:var(--amber);background:rgba(210,153,34,.10)} .byte.carry .hex{color:var(--amber)}
+  .byte.sum{border-color:#a371f7;background:rgba(163,113,247,.10)} .byte.sum .hex{color:#c9a4ff}
+  .byte.frame{border-style:dashed}
   .calc{font:12px var(--mono);color:var(--mut);margin-top:10px;line-height:1.7}
   .calc b{color:var(--ink)} .calc .lo{color:var(--lgreen)} .calc .hi{color:var(--blue)} .calc .carry{color:var(--amber)}
   .gramsBig{font:800 30px var(--mono);color:var(--lgreen)}
@@ -318,31 +321,39 @@ fat  = base ${base.fat.toFixed(1)} + ${cm.added_fat_g} g absorbed oil = ${fat.to
   card.innerHTML=body;
 }
 
-// 6 · BLE weight decode — same decode as the app (index.html) / scripts/ble/scale_reader.py
+// 6 · BLE weight decode — full SWAN packet (protocol reverse-engineered; see main-repo index.html "BLE Scale").
+// Layout: [0]header AC [1]len 05 [2]unit [3]status/high-bits(256 carry) [4]low [5]high [6]magic CE [7]checksum
 let wbuf=[], bleLive=false;
 const hex=b=>b.toString(16).toUpperCase().padStart(2,'0');
+const ROLES=['header','len','unit','status / hi-bits','low byte','high byte','magic','checksum'];
 function renderBle(pkt,live){
-  // pkt = Array(8) of bytes. Roles: byte4 = low, byte5|byte3 = high (do NOT mask bit0).
-  const low=pkt[4], high=pkt[5]|pkt[3], grams=low+high*256;
+  const low=pkt[4], high=pkt[5]|pkt[3], grams=low+high*256;          // do NOT mask bit0 of the high byte
+  const sum=(pkt[2]+pkt[3]+pkt[4]+pkt[5]+pkt[6])&0xFF, sumOK=sum===pkt[7];   // Σ bytes 2..6, low 8 bits
   wbuf.push(grams); if(wbuf.length>5) wbuf.shift();
   const s=[...wbuf].sort((a,b)=>a-b), med=s[s.length>>1];
-  const cell=(i)=>{const cls=i===4?'lo':i===5?'hi':i===3?'carry':'';
-    return `<div class="byte ${cls}"><div class="idx">[${i}]</div><div class="hex">${hex(pkt[i])}</div><div class="dec">${pkt[i]}</div></div>`;};
+  const cls=i=>i===4?'lo':i===5?'hi':i===3?'carry':i===7?'sum':(i===0||i===6)?'frame':'';
+  const cell=i=>`<div class="byte ${cls(i)}"><div class="idx">[${i}]</div><div class="hex">${hex(pkt[i])}</div>
+    <div class="dec">${pkt[i]}</div><div class="role">${ROLES[i]}</div></div>`;
   $("cardBle").innerHTML=`
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
       <button class="btn ghost" id="scaleBtn" style="width:auto;padding:8px 14px">${live?'⚖ scale ✓':'⚖ connect scale'}</button>
-      <span class="muted">${live?'live packet from SWAN scale':'worked example (connect a scale for live packets)'}</span>
+      <span class="muted">${live?'live packet from SWAN scale':'worked example · AC 05 00 02 14 00 CE E4 = 532 g'}</span>
     </div>
     <div class="bytes">${[0,1,2,3,4,5,6,7].map(cell).join('')}</div>
     <div class="calc">
+      <span style="color:var(--mut)">handshake:</span> connect <b>SWAN</b> → subscribe notify <b>ffb2</b>
+        (<code>0000ffb2-…</code>); framed by header <b>AC</b> / magic <b>CE</b>, one 8-byte packet per change.<br>
       <span class="lo">low  = byte[4]</span> = ${low}<br>
-      <span class="hi">high = byte[5] | byte[3]</span> = ${pkt[5]} | ${pkt[3]} = ${high} <span class="carry">← carry byte 3 OR-ed in, bit0 kept</span><br>
+      <span class="hi">high = byte[5] | byte[3]</span> = ${pkt[5]} | ${pkt[3]} = ${high} <span class="carry">← carry in byte 3, bit0 kept</span><br>
       grams = low + high·256 = ${low} + ${high}·256 = <b>${grams} g</b><br>
+      <span class="sum" style="color:#c9a4ff">checksum</span> = (Σ byte[2..6]) &amp; 0xFF = ${hex(sum)} vs byte[7]=${hex(pkt[7])}
+        → <b class="${sumOK?'ok':'no'}">${sumOK?'PASS':'FAIL'}</b><br>
       median(last ${wbuf.length}) = <span class="gramsBig">${med} g</span>
     </div>
     <div class="note"><b>Carry-byte bug:</b> the first decode masked bit0 (<code>byte[5]&amp;0xFE</code>), silently dropping every 256 g
-      step — a 342 g reading collapsed to 86 g. Fix: OR byte[3] in and keep bit0, so weights above 255 g survive.
-      A 5-sample <b>median filter</b> then rejects the flicker/overshoot the load cell emits while settling.</div>`;
+      step — 272 g read as 16 g. Fix: OR byte[3] in and keep bit0, so weights above 255 g survive. The <b>checksum</b>
+      (additive over bytes 2–6) rejects corrupt packets, and a 5-sample <b>median filter</b> rejects the flicker/overshoot
+      the load cell emits while settling.</div>`;
   const b=$("scaleBtn"); if(b) b.onclick=connectScale;
 }
 async function connectScale(){
@@ -363,8 +374,9 @@ async function connectScale(){
     dev.addEventListener('gattserverdisconnected',()=>{bleLive=false;});
   }catch(e){ if(e.name!=='NotFoundError') alert('scale: '+e.message); renderBle(EXAMPLE_PKT,false); }
 }
-// worked example: 342 g → low=0x56(86), high byte5=0x01, carry byte3=0x00 → 86 + 1·256 = 342 g
-const EXAMPLE_PKT=[0x03,0x0A,0x01,0x00,0x56,0x01,0x00,0x00];
+// worked example (from the reverse-engineering doc): AC 05 00 02 14 00 CE E4
+// low=0x14=20, high=0x00|0x02=2 → 20+2·256 = 532 g; checksum E4 = (00+02+14+00+CE)&0xFF ✓
+const EXAMPLE_PKT=[0xAC,0x05,0x00,0x02,0x14,0x00,0xCE,0xE4];
 renderBle(EXAMPLE_PKT,false);  // functional even before models load / offline
 
 // camera
