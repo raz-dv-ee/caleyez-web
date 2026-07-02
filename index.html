@@ -80,6 +80,7 @@
   <div class="result" id="result">
     <div class="food" id="rFood">—</div>
     <div class="meta" id="rMeta"></div>
+    <div id="rAlt" style="font-size:12px;color:var(--mut);margin:-2px 0 4px"></div>
     <div class="kcal" id="rKcal"></div>
     <div class="macros" id="rMacros"></div>
     <button class="btn" id="logBtn" style="margin-top:12px;font-size:15px">＋ Log meal</button>
@@ -89,7 +90,8 @@
     <div style="display:flex;align-items:baseline;justify-content:space-between">
       <b>Today</b><span class="chip" id="histTotal">0 kcal</span>
     </div>
-    <div id="histList" style="margin-top:8px;font-size:14px"></div>
+    <div class="macros" id="histMacros" style="margin-top:10px"></div>
+    <div id="histList" style="margin-top:10px;font-size:14px"></div>
     <div style="display:flex;gap:10px;margin-top:10px">
       <button class="mini" id="histCsv">export CSV</button>
       <button class="mini" id="histClear">clear</button>
@@ -141,10 +143,12 @@ async function mk(url,ep){return ort.InferenceSession.create(await (await fetch(
 
 async function boot(){
   try{
-    const gpu = !!navigator.gpu && window.isSecureContext;
-    const ep = gpu ? ['webgpu','wasm'] : ['wasm'];
-    const pr = gpu ? 'fp16' : 'fp16';                 // fp16 works on both; smallest that keeps accuracy
-    $("epTag").textContent = gpu ? 'WebGPU (GPU)' : 'WASM (CPU)';
+    // Default to WASM: it upcasts fp16 -> fp32, matching desktop accuracy. WebGPU (fp16 compute)
+    // is faster but can lose accuracy on mobile GPUs -> opt in with ?gpu=1 in the URL.
+    const wantGpu = new URLSearchParams(location.search).get('gpu')==='1' && !!navigator.gpu && window.isSecureContext;
+    const ep = wantGpu ? ['webgpu','wasm'] : ['wasm'];
+    const pr = 'fp16';
+    $("epTag").textContent = wantGpu ? 'WebGPU (GPU)' : 'WASM · fp32-accurate';
     $("splashText").textContent="loading models…";
     G=await mk('models/global_'+pr+'.onnx',ep);
     I=await mk('models/israeli_'+pr+'.onnx',ep);
@@ -191,7 +195,8 @@ function feats(probsF32, names, bgKey){
   const conf=[0,1,2,3,4].map(k=>idx[k]?idx[k][0]:0);
   let H=0; for(const v of p){const c=Math.min(Math.max(v,1e-12),1); H-=c*Math.log(c);}
   const pbg = bgKey!=null ? p[+bgKey] : 0;
-  return {label:names[idx[0][1]], conf, entropy:H, margin:conf[0]-conf[1], pbg};
+  const top5=[0,1,2,3,4].map(k=>idx[k]?[names[idx[k][1]],idx[k][0]]:['',0]);
+  return {label:names[idx[0][1]], conf, entropy:H, margin:conf[0]-conf[1], pbg, top5};
 }
 
 async function analyze(){
@@ -221,7 +226,7 @@ async function analyze(){
   last={chosen, routeI, pIsr, confident, abstain};
   render(last);
   if(!abstain){ await ensureNutrition(chosen.label); render(last); }   // fill USDA if not in local DB
-  $("status").textContent='done';
+  $("status").textContent='done'; $("analyze").textContent='📷 New photo';
 }
 let last=null;
 
@@ -235,6 +240,9 @@ function render({chosen, routeI, pIsr, confident, abstain}){
   meta.push(`<span class="chip">P(israeli)=${pIsr.toFixed(2)}</span>`);
   if(!confident) meta.push(`<span class="chip warn">low confidence</span>`);
   $("rMeta").innerHTML=meta.join('');
+  // top-3 of the chosen model (diagnostic + honest)
+  const t3=(chosen.top5||[]).slice(0,3).filter(x=>x[0]).map(([n,c])=>`${pretty(n)} ${(c*100).toFixed(0)}%`).join(' · ');
+  $("rAlt").textContent = t3 ? 'top guesses: '+t3 : '';
 
   const g=+$("grams").value, key=abstain?null:chosen.label, nut=key&&NUTR[key];
   if(nut && g>0){
@@ -261,8 +269,11 @@ async function startCam(){
   }catch(e){$("status").textContent='camera: '+e.message;}
 }
 $("switchCam").onclick=async()=>{if(devices.length>1){camIdx=(camIdx+1)%devices.length;await startCam();}};
-$("retake").onclick=()=>{frozen=false;$("shot").style.display='none';$("cam").style.display='';$("retake").style.display='none';$("result").classList.remove('show');};
-$("analyze").onclick=()=>{analyze().catch(e=>{$("status").textContent='err: '+e.message;alert(e.message);});};
+function retake(){frozen=false;$("shot").style.display='none';$("cam").style.display='';$("retake").style.display='none';
+  $("result").classList.remove('show');$("analyze").textContent='Analyze';$("status").textContent='ready';last=null;}
+$("retake").onclick=retake;
+$("analyze").onclick=()=>{ if(frozen) retake();
+  else analyze().catch(e=>{$("status").textContent='err: '+e.message;alert(e.message);}); };
 $("grams").oninput=()=>{ if(last) render(last); };   // recompute nutrition only, no re-inference
 
 // ---- BLE scale (SWAN): same decode as scripts/ble/scale_reader.py ----
@@ -314,7 +325,10 @@ function renderHistory(){
   const a=loadLog(), t0=new Date().setHours(0,0,0,0), today=a.filter(r=>r.ts>=t0);
   if(!a.length){ $("histCard").classList.remove('show'); return; }
   $("histCard").classList.add('show');
-  $("histTotal").textContent=today.reduce((s,r)=>s+(r.kcal||0),0)+' kcal';
+  const sum=(k)=>today.reduce((s,r)=>s+(r[k]||0),0);
+  $("histTotal").textContent=sum('kcal')+' kcal';
+  $("histMacros").innerHTML=[['pro','protein'],['carb','carbs'],['fat','fat']]
+    .map(([k,l])=>`<div class="macro"><b>${sum(k).toFixed(0)}g</b><span>${l}</span></div>`).join('');
   $("histList").innerHTML=today.slice(-6).reverse().map(r=>{
     const tm=new Date(r.ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
     return `<div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding:5px 0">
