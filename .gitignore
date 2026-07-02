@@ -1,0 +1,8 @@
+# Secrets — never commit these
+.dev.vars
+caleyez_keys.txt
+*.key
+
+# Wrangler / Cloudflare local state
+.wrangler/
+node_modules/
