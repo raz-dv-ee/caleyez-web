@@ -129,7 +129,7 @@ const $=id=>document.getElementById(id);
 ort.env.wasm.wasmPaths="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/";ort.env.wasm.numThreads=1;
 const MODEL_BASE="https://raz-dv-ee.github.io/CalEyeZ/webmodels/";
 const G_SZ=320,I_SZ=224,ROI_FRAC=0.60,GATE_G=0.55,GATE_I=0.60,BOTH_UNSURE=0.50,ARB_BAND=0.15;
-const USDA_PROXY="";  // same as the app: set to your Cloudflare Worker URL to enable live USDA
+const USDA_PROXY="https://caleyez-usda.caleyez.workers.dev";  // live Cloudflare Worker (USDA key is a Worker secret)
 const FEATS=['g_conf1','g_conf2','g_conf3','g_conf4','g_conf5','g_entropy','g_margin',
   'i_conf1','i_conf2','i_conf3','i_conf4','i_conf5','i_entropy','i_margin','i_p_background',
   'conf_gap','conf_ratio','entropy_gap','margin_gap','both_unsure'];

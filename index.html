@@ -205,7 +205,7 @@ const G_SZ=320, I_SZ=224, ROI_FRAC=0.60;
 const GATE_G=0.55, GATE_I=0.60, BOTH_UNSURE=0.50, ARB_BAND=0.15;
 // USDA lookup goes through YOUR proxy (Cloudflare Worker) so the key never ships in this public repo.
 // Set this to your Worker URL, e.g. "https://caleyez-usda.<you>.workers.dev". Empty = local DB only.
-const USDA_PROXY="";
+const USDA_PROXY="https://caleyez-usda.caleyez.workers.dev";
 // 20 features in the arbiter's training order (train_arbiter_xgb.py FEATS)
 let G=null, I=null, ARB=null, namesG=null, namesI=null, iBg=null, NUTR={}, frozen=false;
 
