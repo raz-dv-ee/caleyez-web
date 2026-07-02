@@ -19,12 +19,17 @@ const NUTRIENT = { 1008: "kcal", 2047: "kcal", 2048: "kcal", 1003: "pro", 1005: 
 
 // Descriptions containing a JUNK token are rejected UNLESS the query itself asked for that token.
 // This is what stops "apple" -> "apple juice" and "tomato" -> "tomato sauce, canned".
-const CACHE_VER = "5";                             // bump to invalidate the edge cache after logic changes
+const CACHE_VER = "7";                             // bump to invalidate the edge cache after logic changes
 const JUNK = ["juice","drink","beverage","nectar","dried","dehydrated","chips","crisps","powder",
   "flour","baby food","infant","strained","sauce","gravy","soup","broth","candy","candies",
   "syrup","jam","jelly","jellied","preserve","marmalade","cocktail","pie filling","frozen novelties",
   "topping","flavored","imitation","substitute"];
-const STOP = new Set(["and","with","in","the","of","raw","fresh","food","foods","a","or","style"]);
+// Stop words never drive a match. Cooking words are here on purpose: a class like "grilled_salmon"
+// should resolve to the base SALMON (the method is handled by the separate multiplier), and this
+// stops "grilled" from matching "GRILL" inside a restaurant dish name.
+const STOP = new Set(["and","with","in","the","of","a","or","style","fresh","food","foods",
+  "raw","grilled","grill","fried","deep","baked","roasted","broiled","boiled","steamed","cooked",
+  "smoked","dry","moist","heat","prepared","homemade"]);
 
 const tokenize = s => s.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(Boolean);
 // fuzzy token match: exact, or one is a prefix of the other (handles apple/apples, potato/potatoes).
@@ -51,6 +56,8 @@ function scoreCandidate(desc, qTokens) {
   //   the primary name ("Apples, raw") over one where it is only part of it ("Rose-apples", "egg white")
   if (d.includes("raw")) score += 8;                       // prefer the plain/raw form for a base food
   score -= Math.min(all.length, 20) * 0.5;                 // gently prefer shorter, less-qualified names
+  const letters = desc.replace(/[^a-zA-Z]/g, "");          // ALL-CAPS = branded/restaurant SR entry
+  if (letters && [...letters].filter(c => c >= "A" && c <= "Z").length / letters.length > 0.6) score -= 40;
   return { score, reason: null };
 }
 
