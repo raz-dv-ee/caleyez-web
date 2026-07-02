@@ -61,6 +61,19 @@
   @keyframes sp{to{transform:rotate(360deg)}}
   #out{display:none;flex-direction:column;gap:12px}
   .muted{color:var(--mut);font-size:12px}
+  .bytes{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
+  .byte{flex:none;width:52px;text-align:center;border:1px solid var(--line);border-radius:8px;padding:6px 2px;background:var(--panel2)}
+  .byte .idx{font:10px var(--mono);color:var(--mut)}
+  .byte .hex{font:700 15px var(--mono);color:var(--ink);margin:2px 0}
+  .byte .dec{font:10px var(--mono);color:var(--mut)}
+  .byte.lo{border-color:var(--lgreen);background:rgba(70,201,141,.10)} .byte.lo .hex{color:var(--lgreen)}
+  .byte.hi{border-color:var(--blue);background:rgba(77,157,224,.10)} .byte.hi .hex{color:var(--blue)}
+  .byte.carry{border-color:var(--amber);background:rgba(210,153,34,.10)} .byte.carry .hex{color:var(--amber)}
+  .calc{font:12px var(--mono);color:var(--mut);margin-top:10px;line-height:1.7}
+  .calc b{color:var(--ink)} .calc .lo{color:var(--lgreen)} .calc .hi{color:var(--blue)} .calc .carry{color:var(--amber)}
+  .gramsBig{font:800 30px var(--mono);color:var(--lgreen)}
+  .note{border-left:3px solid var(--amber);padding:6px 0 6px 10px;margin-top:10px;color:var(--mut);font-size:11.5px;line-height:1.6}
+  .note b{color:var(--amber)}
 </style>
 
 <div id="splash"><div class="spin"></div><div id="sp">booting engine…</div></div>
@@ -104,6 +117,9 @@
     <div><h2><span class="n">5</span> Nutrition lookup</h2>
       <div class="card" id="cardNut"></div></div>
   </div>
+
+  <div><h2><span class="n">6</span> Weight decode · BLE scale</h2>
+    <div class="card" id="cardBle"></div></div>
 </div>
 
 <canvas id="cv" hidden></canvas>
@@ -220,6 +236,55 @@ function renderAll(r){
   $("cardNut").innerHTML=body;
   $("out").style.display='flex';
 }
+
+// 6 · BLE weight decode — same decode as the app (index.html) / scripts/ble/scale_reader.py
+let wbuf=[], bleLive=false;
+const hex=b=>b.toString(16).toUpperCase().padStart(2,'0');
+function renderBle(pkt,live){
+  // pkt = Array(8) of bytes. Roles: byte4 = low, byte5|byte3 = high (do NOT mask bit0).
+  const low=pkt[4], high=pkt[5]|pkt[3], grams=low+high*256;
+  wbuf.push(grams); if(wbuf.length>5) wbuf.shift();
+  const s=[...wbuf].sort((a,b)=>a-b), med=s[s.length>>1];
+  const cell=(i)=>{const cls=i===4?'lo':i===5?'hi':i===3?'carry':'';
+    return `<div class="byte ${cls}"><div class="idx">[${i}]</div><div class="hex">${hex(pkt[i])}</div><div class="dec">${pkt[i]}</div></div>`;};
+  $("cardBle").innerHTML=`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <button class="btn ghost" id="scaleBtn" style="width:auto;padding:8px 14px">${live?'⚖ scale ✓':'⚖ connect scale'}</button>
+      <span class="muted">${live?'live packet from SWAN scale':'worked example (connect a scale for live packets)'}</span>
+    </div>
+    <div class="bytes">${[0,1,2,3,4,5,6,7].map(cell).join('')}</div>
+    <div class="calc">
+      <span class="lo">low  = byte[4]</span> = ${low}<br>
+      <span class="hi">high = byte[5] | byte[3]</span> = ${pkt[5]} | ${pkt[3]} = ${high} <span class="carry">← carry byte 3 OR-ed in, bit0 kept</span><br>
+      grams = low + high·256 = ${low} + ${high}·256 = <b>${grams} g</b><br>
+      median(last ${wbuf.length}) = <span class="gramsBig">${med} g</span>
+    </div>
+    <div class="note"><b>Carry-byte bug:</b> the first decode masked bit0 (<code>byte[5]&amp;0xFE</code>), silently dropping every 256 g
+      step — a 342 g reading collapsed to 86 g. Fix: OR byte[3] in and keep bit0, so weights above 255 g survive.
+      A 5-sample <b>median filter</b> then rejects the flicker/overshoot the load cell emits while settling.</div>`;
+  const b=$("scaleBtn"); if(b) b.onclick=connectScale;
+}
+async function connectScale(){
+  if(!navigator.bluetooth){ alert("This browser has no Web Bluetooth (use Chrome on Android)."); return; }
+  try{
+    $("scaleBtn").textContent='⚖ scanning…';
+    const dev=await navigator.bluetooth.requestDevice({filters:[{namePrefix:'SWAN'}],
+      optionalServices:[0xffb0,0xfff0,0xffe0,0x181d,
+        '0000ffb0-0000-1000-8000-00805f9b34fb','0000fff0-0000-1000-8000-00805f9b34fb']});
+    const gatt=await dev.gatt.connect(); let ch=null;
+    for(const svc of await gatt.getPrimaryServices()){
+      for(const c of await svc.getCharacteristics()){ if(c.uuid.includes('ffb2')){ ch=c; break; } } if(ch) break; }
+    if(!ch) throw new Error("weight characteristic (ffb2) not found");
+    await ch.startNotifications();
+    ch.addEventListener('characteristicvaluechanged',e=>{
+      const d=e.target.value; if(d.byteLength<8) return;
+      renderBle([0,1,2,3,4,5,6,7].map(i=>d.getUint8(i)),true); bleLive=true;});
+    dev.addEventListener('gattserverdisconnected',()=>{bleLive=false;});
+  }catch(e){ if(e.name!=='NotFoundError') alert('scale: '+e.message); renderBle(EXAMPLE_PKT,false); }
+}
+// worked example: 342 g → low=0x56(86), high byte5=0x01, carry byte3=0x00 → 86 + 1·256 = 342 g
+const EXAMPLE_PKT=[0x03,0x0A,0x01,0x00,0x56,0x01,0x00,0x00];
+renderBle(EXAMPLE_PKT,false);  // functional even before models load / offline
 
 // camera
 let stream=null;
