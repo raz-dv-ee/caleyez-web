@@ -120,6 +120,24 @@
 
   <div><h2><span class="n">6</span> Weight decode · BLE scale</h2>
     <div class="card" id="cardBle"></div></div>
+
+  <div><h2><span class="n">7</span> Compatibility &amp; requirements</h2>
+    <div class="card">
+      <div class="muted" style="margin-bottom:8px">CalEyeZ runs the full pipeline <b style="color:var(--ink)">on-device</b>
+        (no cloud inference), so the browser and hardware set the limits. It does <b style="color:var(--ink)">not</b>
+        run identically on every phone — here is exactly what it needs and why.</div>
+      <table><thead><tr><th>requirement</th><th>needs</th><th>why</th></tr></thead><tbody>
+        <tr><td>WebAssembly + SIMD</td><td>any modern browser (2021+)</td><td>onnxruntime-web executes the two CNNs in WASM; SIMD is what makes ~0.6 s inference possible</td></tr>
+        <tr><td>Camera</td><td>getUserMedia over HTTPS</td><td>secure-context only; the ROI crop is read straight off the video frame</td></tr>
+        <tr class="inter"><td>BLE scale (SWAN)</td><td>Web Bluetooth — Android Chrome/Edge only</td><td>iOS (Safari <i>and</i> Chrome-iOS, both WebKit) and Firefox block Web Bluetooth → on iPhone the scale can't pair, so weight falls back to manual grams</td></tr>
+        <tr><td>WebGPU (optional, <code>?gpu=1</code>)</td><td>WebGPU-capable browser + GPU</td><td>faster fp16 compute path; default is WASM fp32 because some mobile GPUs lose accuracy in fp16</td></tr>
+        <tr><td>Memory / download</td><td>~50 MB models, ≳2 GB RAM</td><td>global fp16 ≈25 MB (320², 132 cls) + israeli fp16 ≈25 MB (224², 13+bg); WASM upcasts fp16→fp32 at run time, so a few hundred MB is touched during inference</td></tr>
+        <tr><td>Network</td><td>first load only</td><td>models fetch once from GitHub Pages then HTTP-cache; recognition then works offline — only USDA nutrition lookups need the network</td></tr>
+      </tbody></table>
+      <div class="note" style="border-left-color:var(--blue)"><b style="color:var(--blue)">Bottom line:</b> best experience is
+        <b style="color:var(--ink)">Android Chrome</b> (full feature set incl. BLE scale). iPhone/Safari runs recognition +
+        camera + manual weight, but not the Bluetooth scale. Desktop Chrome/Edge runs everything except the phone camera use-case.</div>
+    </div></div>
 </div>
 
 <canvas id="cv" hidden></canvas>
