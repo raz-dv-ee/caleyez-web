@@ -61,10 +61,10 @@
   @keyframes sp{to{transform:rotate(360deg)}}
   #out{display:none;flex-direction:column;gap:12px}
   .muted{color:var(--mut);font-size:12px}
-  .bytes{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
-  .byte{flex:none;width:52px;text-align:center;border:1px solid var(--line);border-radius:8px;padding:6px 2px;background:var(--panel2)}
+  .bytes{display:grid;grid-template-columns:repeat(8,1fr);gap:4px}
+  .byte{text-align:center;border:1px solid var(--line);border-radius:8px;padding:6px 1px;background:var(--panel2);min-width:0}
   .byte .idx{font:10px var(--mono);color:var(--mut)}
-  .byte .hex{font:700 15px var(--mono);color:var(--ink);margin:2px 0}
+  .byte .hex{font:700 clamp(12px,3.4vw,15px) var(--mono);color:var(--ink);margin:2px 0}
   .byte .dec{font:10px var(--mono);color:var(--mut)}
   .byte.lo{border-color:var(--lgreen);background:rgba(70,201,141,.10)} .byte.lo .hex{color:var(--lgreen)}
   .byte.hi{border-color:var(--blue);background:rgba(77,157,224,.10)} .byte.hi .hex{color:var(--blue)}
