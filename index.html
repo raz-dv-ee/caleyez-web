@@ -174,7 +174,8 @@
     <div id="rControls"></div>
     <div class="kcal" id="rKcal"></div>
     <div class="macros" id="rMacros"></div>
-    <button class="btn" id="logBtn" style="margin-top:12px;font-size:15px">＋ Log meal</button>
+    <button class="mini" id="askGemini" style="margin-top:10px">🔮 Ask Gemini (override)</button>
+    <button class="btn" id="logBtn" style="margin-top:8px;font-size:15px">＋ Log meal</button>
   </div>
 
   <div class="result" id="histCard">
@@ -233,6 +234,30 @@ async function ensureNutrition(label){
     const j=r.ok ? await r.json() : null;
     NUTR[label]=(j && j.kcal!=null) ? j : null;
   }catch(e){ NUTR[label]=null; }
+}
+
+// Gemini vision fallback (via the Worker; key stays server-side). Sends the central ROI, like the
+// desktop demo's gemini_identify(). Returns a snake_case food label or null.
+async function geminiIdentify(){
+  if(!USDA_PROXY) return null;
+  try{
+    const img=drawROI(G_SZ).toDataURL('image/jpeg',0.9);
+    const r=await fetch(USDA_PROXY,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({image:img})});
+    const j=r.ok?await r.json():null;
+    return (j&&j.food)?j.food:null;
+  }catch(e){ return null; }
+}
+// Replace the current result with a Gemini-identified food and refresh nutrition.
+async function applyGemini(){
+  if(!frozen||!last){ return; }
+  $("status").textContent='asking Gemini…';
+  const food=await geminiIdentify();
+  if(!food){ $("status").textContent='Gemini could not identify'; return; }
+  last.chosen={label:food, conf:[1,0,0,0,0], top5:[[food,1]]};
+  last.abstain=false; last.confident=true; last.usedGemini=true;
+  selSub=''; const _pm=FOODMETA[food]; selPrep=(_pm&&_pm.prep&&_pm.prep.length)?(_pm.prep.includes('raw')?'raw':_pm.prep[0]):'raw';
+  render(last); await ensureNutrition(food); render(last);
+  $("status").textContent='Gemini';
 }
 
 async function mk(url,ep){return ort.InferenceSession.create(await (await fetch(url)).arrayBuffer(),{executionProviders:ep});}
@@ -329,6 +354,7 @@ async function analyze(){
   if(!abstain){ await ensureNutrition(chosen.label); render(last); }   // fill USDA if not in local DB
   $("stage").classList.remove('scanning');
   $("status").textContent='done'; $("analyze").textContent='📷 New photo';
+  if(!confident || abstain){ await applyGemini(); }                    // unsure -> Gemini vision fallback
 }
 let last=null;
 
@@ -360,15 +386,20 @@ function controlsHTML(label){
 function onSub(v){ selSub=v; if(last) render(last); }
 function onPrep(v){ selPrep=v; if(last) render(last); }
 
-function render({chosen, routeI, pIsr, confident, abstain}){
+function render({chosen, routeI, pIsr, confident, abstain, usedGemini}){
   const pretty=s=>s.replace(/_/g,' ');
   const label = abstain ? 'not recognized' : pretty(chosen.label);
   $("rFood").textContent=label;
   const meta=[];
-  meta.push(`<span class="chip ${routeI?'i':'g'}">${routeI?'Israeli expert':'Global expert'}</span>`);
-  meta.push(`<span class="chip">${(chosen.conf[0]*100).toFixed(0)}% conf</span>`);
-  meta.push(`<span class="chip">P(israeli)=${pIsr.toFixed(2)}</span>`);
-  if(!confident) meta.push(`<span class="chip warn">low confidence</span>`);
+  if(usedGemini){
+    meta.push(`<span class="chip" style="background:#6f42c1;color:#fff">🔮 Gemini vision</span>`);
+    meta.push(`<span class="chip">on-device system was unsure</span>`);
+  }else{
+    meta.push(`<span class="chip ${routeI?'i':'g'}">${routeI?'Israeli expert':'Global expert'}</span>`);
+    meta.push(`<span class="chip">${(chosen.conf[0]*100).toFixed(0)}% conf</span>`);
+    meta.push(`<span class="chip">P(israeli)=${pIsr.toFixed(2)}</span>`);
+    if(!confident) meta.push(`<span class="chip warn">low confidence</span>`);
+  }
   $("rMeta").innerHTML=meta.join('');
   // top-3 of the chosen model (diagnostic + honest)
   const t3=(chosen.top5||[]).slice(0,3).filter(x=>x[0]).map(([n,c])=>`${pretty(n)} ${(c*100).toFixed(0)}%`).join(' · ');
@@ -478,6 +509,7 @@ function renderHistory(){
   }).join('') || '<span class="chip">no entries today</span>';
 }
 $("logBtn").onclick=logMeal;
+$("askGemini").onclick=()=>applyGemini().catch(e=>{$("status").textContent='Gemini err';});
 $("histClear").onclick=()=>{ if(confirm('Clear all logged meals?')){saveLog([]);renderHistory();} };
 $("histCsv").onclick=()=>{
   const a=loadLog(); if(!a.length)return;
