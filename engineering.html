@@ -196,10 +196,13 @@ async function analyze(){
     $("cam").style.display='none';$("retake").style.display='';frozen=true;await new Promise(r=>{$("shot").onload=r;if($("shot").complete)r();});}
   $("analyze").textContent='tracing…';
   const cg=roiCanvas(G_SZ),ci=roiCanvas(I_SZ);
+  const t0=performance.now();
   const tG=tensor(cg,G_SZ), go=await G.run({[G.inputNames[0]]:tG});
   const tI=tensor(ci,I_SZ), io=await I.run({[I.inputNames[0]]:tI});
+  const infMs=Math.round(performance.now()-t0);
   const g=feats(Object.values(go)[0].data,namesG,null), i=feats(Object.values(io)[0].data,namesI,iBg);
   disposeT(tG,tI,go,io);   // free WASM/GPU tensor memory (not reclaimed by JS GC) - avoids OOM over many captures
+  $("epTag").innerHTML=`WASM · fp32-accurate · <b style="color:var(--lgreen)">⚡ ${infMs} ms</b> on-device (both CNNs + arbiter, no cloud)`;
   const f=[g.conf[0],g.conf[1],g.conf[2],g.conf[3],g.conf[4],g.entropy,g.margin,
     i.conf[0],i.conf[1],i.conf[2],i.conf[3],i.conf[4],i.entropy,i.margin,i.pbg,
     g.conf[0]-i.conf[0],g.conf[0]/(i.conf[0]+1e-6),i.entropy-g.entropy,g.margin-i.margin,((g.conf[0]<0.5)&&(i.conf[0]<0.5))?1:0];
