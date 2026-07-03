@@ -49,6 +49,10 @@
   .result{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px;display:none}
   .result.show{display:block;animation:pop .25s ease}
   @keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  #loadbar{width:210px;height:6px;background:rgba(255,255,255,.08);border-radius:99px;overflow:hidden}
+  #loadfill{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--blue));border-radius:99px;transition:width .2s ease}
+  .btn.pulse{animation:logpulse .5s ease}
+  @keyframes logpulse{0%{transform:scale(1)}30%{transform:scale(1.05);box-shadow:0 0 0 5px rgba(63,185,80,.35)}100%{transform:scale(1)}}
   .food{font-size:26px;font-weight:800;text-transform:capitalize}
   .meta{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 4px}
   .chip{font-size:12px;padding:4px 10px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);color:var(--mut)}
@@ -139,6 +143,8 @@
   <div class="brand">CalEyeZ</div>
   <div class="tag">AI Food Tracking</div>
   <div class="t" id="splashText">initializing optics…</div>
+  <div id="loadbar"><div id="loadfill"></div></div>
+  <div class="t" id="loadpct" style="letter-spacing:2px;font-size:11px"></div>
 </div>
 
 <div id="app">
@@ -169,6 +175,7 @@
     <button class="mini" id="scaleBtn">⚖ connect scale</button>
     <button class="mini" id="switchCam">⟳ camera</button>
     <button class="mini" id="retake" style="display:none">↺ live</button>
+    <button class="mini" id="soundBtn" title="sound on/off">🔊</button>
     <span class="chip" id="status" style="margin-left:auto">warming up…</span>
   </div>
 
@@ -258,7 +265,9 @@ async function applyGemini(){
   if($("result").className.indexOf('show')<0 || !last.usedGemini) renderGeminiPending();  // ensure the waiting state is up
   $("status").textContent='asking Gemini…';
   const food=await geminiIdentify();
-  if(!food){                                   // Gemini unavailable/failed -> fall back to the on-device guess
+  if(!food){
+    if(!navigator.onLine){ renderUnsureOffline(); return; }   // dropped connection mid-request
+    // online but Gemini could not identify -> fall back to the on-device guess
     $("status").textContent='Gemini unavailable';
     if(last.abstain){ $("rFood").textContent='not recognized';
       $("rMeta").innerHTML=`<span class="chip warn">no food detected</span>`;
@@ -268,6 +277,7 @@ async function applyGemini(){
   }
   last.chosen={label:food, conf:[1,0,0,0,0], top5:[[food,1]]};
   last.abstain=false; last.confident=true; last.usedGemini=true;
+  animateKcal=true; sfxReady(); buzz(15);
   selSub=''; const _pm=FOODMETA[food]; selPrep=(_pm&&_pm.prep&&_pm.prep.length)?(_pm.prep.includes('raw')?'raw':_pm.prep[0]):'raw';
   render(last); await ensureNutrition(food); render(last);
   $("status").textContent='Gemini';
@@ -290,7 +300,45 @@ function dispose(...items){ for(const it of items){
   else { for(const k in it){ it[k] && it[k].dispose && it[k].dispose(); } }  // a run() output map
 }}
 
-async function mk(url,ep){return ort.InferenceSession.create(await (await fetch(url)).arrayBuffer(),{executionProviders:ep});}
+// ---- feedback: haptics + optional synthesized sound (no asset files; WebAudio) ----
+let SOUND = localStorage.getItem('caleyez_sound')!=='off';
+let actx=null;
+function audio(){ if(!SOUND) return null; try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+  if(actx.state==='suspended') actx.resume(); return actx; }catch(e){ return null; } }
+function tone(freq,dur,type,gain,delay){ const c=audio(); if(!c) return; const t=c.currentTime+(delay||0);
+  const o=c.createOscillator(),g=c.createGain(); o.type=type||'sine'; o.frequency.value=freq;
+  g.gain.setValueAtTime(gain||0.05,t); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g).connect(c.destination); o.start(t); o.stop(t+dur); }
+function sfxShutter(){ const c=audio(); if(!c) return;               // short filtered noise "click"
+  const n=Math.floor(c.sampleRate*0.05), b=c.createBuffer(1,n,c.sampleRate), d=b.getChannelData(0);
+  for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/n,3);
+  const s=c.createBufferSource(),g=c.createGain(); g.gain.value=0.08; s.buffer=b; s.connect(g).connect(c.destination); s.start(); }
+function sfxSuccess(){ tone(660,0.12,'sine',0.06,0); tone(988,0.16,'sine',0.06,0.09); }   // two-note chime
+function sfxReady(){ tone(523,0.09,'triangle',0.045,0); }
+const buzz=p=>{ try{ navigator.vibrate && navigator.vibrate(p); }catch(e){} };
+function updSound(){ $("soundBtn").textContent = SOUND?'🔊':'🔇'; }
+// animated count-up for the calorie number (runs once per fresh result, not on grams drag)
+let animateKcal=false, _kcalTween=0;
+function countUp(el, to, tail){ cancelAnimationFrame(_kcalTween); const t0=performance.now(), dur=420;
+  const step=now=>{ const k=Math.min(1,(now-t0)/dur), v=Math.round(to*(1-Math.pow(1-k,3)));
+    el.innerHTML=`${v} ${tail}`; if(k<1) _kcalTween=requestAnimationFrame(step); };
+  _kcalTween=requestAnimationFrame(step); }
+
+// Stream a model file so the splash can show real download progress (first load is ~50 MB; on
+// conference wifi a determinate bar beats a blank splash). Falls back to a plain fetch if no stream.
+async function fetchBuf(url,onProg){
+  const r=await fetch(url); if(!r.ok) throw new Error('fetch '+r.status+' '+url);
+  const total=+(r.headers.get('content-length')||0);
+  if(!r.body||!total){ const b=await r.arrayBuffer(); onProg&&onProg(b.byteLength,b.byteLength); return b; }
+  const reader=r.body.getReader(); const chunks=[]; let got=0;
+  for(;;){ const {done,value}=await reader.read(); if(done) break; chunks.push(value); got+=value.length; onProg&&onProg(got,total); }
+  const out=new Uint8Array(got); let o=0; for(const c of chunks){ out.set(c,o); o+=c.length; } return out.buffer;
+}
+async function mk(url,ep,onProg){ return ort.InferenceSession.create(await fetchBuf(url,onProg),{executionProviders:ep}); }
+// The two models download sequentially, so give each a fixed 50% band -> the bar only moves forward.
+function loadProgress(){
+  return base=>(got,total)=>{ const frac=total?got/total:0, pct=Math.min(100,Math.round(base+frac*50));
+    $("loadfill").style.width=pct+'%'; $("loadpct").textContent=pct+'%'; }; }
 
 async function boot(){
   try{
@@ -300,9 +348,11 @@ async function boot(){
     const ep = wantGpu ? ['webgpu','wasm'] : ['wasm'];
     const pr = 'fp16';
     $("epTag").textContent = wantGpu ? 'WebGPU (GPU)' : 'WASM · fp32-accurate';
-    $("splashText").textContent="loading vision models…";
-    G=await mk(MODEL_BASE+'global_'+pr+'.onnx',ep);
-    I=await mk(MODEL_BASE+'israeli_'+pr+'.onnx',ep);
+    $("splashText").textContent="downloading vision models…";
+    const prog=loadProgress();                                       // determinate bar: global 0-50%, israeli 50-100%
+    G=await mk(MODEL_BASE+'global_'+pr+'.onnx',ep,prog(0));
+    I=await mk(MODEL_BASE+'israeli_'+pr+'.onnx',ep,prog(50));
+    $("loadfill").style.width='100%';
     ARB=await (await fetch(MODEL_BASE+'arbiter_trees.json')).json();   // XGBoost trees, evaluated in JS
     namesG=await (await fetch(MODEL_BASE+'global_names.json')).json();
     namesI=await (await fetch(MODEL_BASE+'israeli_names.json')).json();
@@ -355,6 +405,7 @@ function feats(probsF32, names, bgKey){
 
 async function analyze(){
   if(!frozen){ // freeze current frame
+    buzz(30); sfxShutter();                         // capture feedback (haptic + shutter)
     const v=$("cam"),c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;
     c.getContext('2d').drawImage(v,0,0);$("shot").src=c.toDataURL('image/jpeg',0.92);
     $("shot").style.display='block';$("cam").style.display='none';$("retake").style.display='';frozen=true;
@@ -387,14 +438,31 @@ async function analyze(){
   $("stage").classList.remove('scanning');
   $("analyze").textContent='📷 New photo';
   if((!confident || abstain) && USDA_PROXY){
-    // Unsure -> do NOT flash the shaky guess. Show a clean "asking Gemini" state, then Gemini's answer.
-    renderGeminiPending(); $("status").textContent='asking Gemini…';
-    await applyGemini();
+    // Unsure -> the on-device system defers to Gemini. But Gemini needs the network: recognition runs
+    // fully offline, the cloud fallback does not. If there's no connection, say so honestly instead of
+    // guessing. (This is the airplane-mode edge case: models already cached, but no fallback possible.)
+    if(!navigator.onLine){ renderUnsureOffline(); }
+    else {
+      renderGeminiPending(); $("status").textContent='asking Gemini…';
+      await applyGemini();
+    }
   }else{
+    animateKcal=true; sfxReady(); buzz(15);           // result-ready feedback + count-up
     render(last);
     if(!abstain){ await ensureNutrition(chosen.label); render(last); }  // fill USDA if not in local DB
     $("status").textContent='done';
   }
+}
+// Unsure + no internet: recognition ran on-device, but the Gemini cloud fallback is unreachable.
+function renderUnsureOffline(){
+  $("rFood").textContent = 'Unrecognized';
+  $("rMeta").innerHTML = `<span class="chip warn">on-device models unsure</span>`+
+    `<span class="chip" style="border-color:rgba(248,81,73,.55);color:#f85149">⚠ offline</span>`;
+  $("rAlt").textContent=''; $("rControls").innerHTML=''; $("rMacros").innerHTML='';
+  $("rKcal").innerHTML=`<small>Not a confident food match, and there's <b>no internet</b> to ask the Gemini
+    cloud fallback. Recognition runs on-device; the fallback needs a connection. Reconnect and retake.</small>`;
+  $("result").classList.add('show');
+  $("status").textContent='offline · no fallback';
 }
 let last=null;
 
@@ -450,9 +518,11 @@ function render({chosen, routeI, pIsr, confident, abstain, usedGemini, infMs}){
   $("rControls").innerHTML = key ? controlsHTML(key) : '';
   const nut = key ? effNut(key) : null;
   if(nut && g>0){
-    const r=g/100;
+    const r=g/100, kc=Math.round(nut.kcal*r);
     const tag = (selSub?selSub:'') + (selPrep&&selPrep!=='raw'?(selSub?' · ':'')+selPrep.replace(/_/g,' '):'');
-    $("rKcal").innerHTML=`${Math.round(nut.kcal*r)} <small>kcal · ${g} g${tag?' · '+tag:''}</small>`;
+    const tail=`<small>kcal · ${g} g${tag?' · '+tag:''}</small>`;
+    $("rKcal").innerHTML=`${kc} ${tail}`;                        // always set final value (robust if rAF throttled)
+    if(animateKcal){ countUp($("rKcal"), kc, tail); animateKcal=false; }   // then animate for flair
     $("rMacros").innerHTML=[['pro','protein'],['carb','carbs'],['fat','fat']]
       .map(([k,l])=>`<div class="macro"><b>${(nut[k]*r).toFixed(1)}g</b><span>${l}</span></div>`).join('');
   }else{
@@ -527,7 +597,9 @@ function logMeal(){
     kcal:(nut&&g)?Math.round(nut.kcal*r):null,
     pro:(nut&&g)?+(nut.pro*r).toFixed(1):null, carb:(nut&&g)?+(nut.carb*r).toFixed(1):null, fat:(nut&&g)?+(nut.fat*r).toFixed(1):null};
   const a=loadLog(); a.push(row); saveLog(a); renderHistory();
-  $("logBtn").textContent='✓ logged'; setTimeout(()=>$("logBtn").textContent='＋ Log meal',1200);
+  buzz([15,45,15]); sfxSuccess();                                   // log-success feedback
+  $("logBtn").textContent='✓ logged'; $("logBtn").classList.add('pulse');
+  setTimeout(()=>{$("logBtn").textContent='＋ Log meal';$("logBtn").classList.remove('pulse');},1200);
 }
 function renderHistory(){
   const a=loadLog(), t0=new Date().setHours(0,0,0,0), today=a.filter(r=>r.ts>=t0);
@@ -551,6 +623,8 @@ function renderHistory(){
 }
 $("logBtn").onclick=logMeal;
 $("askGemini").onclick=()=>applyGemini().catch(e=>{$("status").textContent='Gemini err';});
+updSound();
+$("soundBtn").onclick=()=>{ SOUND=!SOUND; localStorage.setItem('caleyez_sound',SOUND?'on':'off'); updSound(); if(SOUND){ audio(); sfxReady(); } };
 $("histClear").onclick=()=>{ if(confirm('Clear all logged meals?')){saveLog([]);renderHistory();} };
 $("histCsv").onclick=()=>{
   const a=loadLog(); if(!a.length)return;

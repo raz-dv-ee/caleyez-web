@@ -277,6 +277,10 @@ function renderAll(r){
 // and re-point the nutrition section (5) at Gemini's answer. Mirrors the app's applyGemini().
 async function geminiStepE(){
   const box=$("gemBox"); if(!box||!USDA_PROXY) return;
+  if(!navigator.onLine){   // recognition ran on-device, but the cloud fallback needs a connection
+    box.innerHTML=`<span class="no">⚠ offline - cannot reach Gemini.</span> <span class="muted">On-device models were unsure; with no connection the system cannot fall back, so the food is reported as unrecognized.</span>`;
+    return;
+  }
   box.innerHTML=`<span class="gemwait"><span class="gemspin"></span>asking Gemini vision<span class="gemdots"><i>.</i><i>.</i><i>.</i></span></span>`;
   let food=null;
   try{
