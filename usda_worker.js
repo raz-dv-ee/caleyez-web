@@ -65,10 +65,15 @@ export default {
   async fetch(req, env, ctx) {
     const cors = {
       "Access-Control-Allow-Origin": ALLOW_ORIGIN,
-      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "content-type",
       "content-type": "application/json",
     };
     if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+
+    // POST = Gemini vision fallback: identify the food in an image when the on-device system is unsure.
+    // Body: { image: "data:image/jpeg;base64,..." }  ->  { food: "grilled_salmon" | null }
+    if (req.method === "POST") return geminiIdentify(req, env, cors);
 
     const url = new URL(req.url);
     const q = (url.searchParams.get("q") || "").trim();
@@ -125,3 +130,30 @@ export default {
 };
 
 const json = (obj, headers) => new Response(JSON.stringify(obj), { headers });
+
+// Gemini vision fallback — mirrors the desktop demo's gemini_identify():
+// "Identify the single main food. Reply with only its common English name, no punctuation."
+// Returns { food: "<snake_case name>" } or { food: null }. Key is a Worker SECRET (env.GEMINI_KEY).
+const GEMINI_MODEL = "gemini-flash-latest";
+async function geminiIdentify(req, env, cors) {
+  if (!env.GEMINI_KEY) return json({ food: null, error: "no key" }, cors);
+  let dataUrl;
+  try { dataUrl = (await req.json()).image || ""; } catch (e) { return json({ food: null }, cors); }
+  const m = /^data:(image\/\w+);base64,(.+)$/s.exec(dataUrl);
+  if (!m) return json({ food: null }, cors);
+  try {
+    const api = "https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_MODEL +
+      ":generateContent?key=" + env.GEMINI_KEY;
+    const body = { contents: [{ parts: [
+      { text: "Identify the single main food. Reply with only its common English name, no punctuation." },
+      { inline_data: { mime_type: m[1], data: m[2] } } ] }] };
+    const r = await fetch(api, { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify(body) });
+    if (!r.ok) return json({ food: null, error: "gemini " + r.status }, cors);
+    const txt = (((await r.json()).candidates || [])[0]?.content?.parts || [])[0]?.text || "";
+    const food = txt.trim().toLowerCase().replace(/[^a-z0-9 ]+/g, "").replace(/\s+/g, "_");
+    return json({ food: food || null, raw: txt.trim() }, cors);
+  } catch (e) {
+    return json({ food: null, error: String(e) }, cors);
+  }
+}
