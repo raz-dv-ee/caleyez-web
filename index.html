@@ -435,6 +435,7 @@ async function connectScale(){
 }
 function onWeight(e){
   const d=e.target.value; if(d.byteLength<8) return;
+  if(d.getUint8(0)!==0xAC) return;   // only weight frames (header AC); ignore status/keepalive frames that decode to junk/0
   const low=d.getUint8(4), high=d.getUint8(5)|d.getUint8(3);   // do NOT mask bit0 (drops 256 g)
   wbuf.push(low+high*256); if(wbuf.length>5) wbuf.shift();
   const s=[...wbuf].sort((a,b)=>a-b); const med=s[s.length>>1]; // median rejects flicker/overshoot

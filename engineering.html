@@ -370,7 +370,9 @@ async function connectScale(){
     await ch.startNotifications();
     ch.addEventListener('characteristicvaluechanged',e=>{
       const d=e.target.value; if(d.byteLength<8) return;
-      renderBle([0,1,2,3,4,5,6,7].map(i=>d.getUint8(i)),true); bleLive=true;});
+      const pkt=[0,1,2,3,4,5,6,7].map(i=>d.getUint8(i));
+      if(pkt[0]!==0xAC) return;                              // ignore non-weight frames -> hold last reading
+      renderBle(pkt,true); bleLive=true;});                  // (section 6 shows checksum PASS/FAIL as info)
     dev.addEventListener('gattserverdisconnected',()=>{bleLive=false;});
   }catch(e){ if(e.name!=='NotFoundError') alert('scale: '+e.message); renderBle(EXAMPLE_PKT,false); }
 }
