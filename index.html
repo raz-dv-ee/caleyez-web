@@ -52,6 +52,11 @@
   .food{font-size:26px;font-weight:800;text-transform:capitalize}
   .meta{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 4px}
   .chip{font-size:12px;padding:4px 10px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);color:var(--mut)}
+  .gemwait{display:inline-flex;align-items:center;gap:10px;font-size:16px;color:#b18cf0;font-weight:700}
+  .gemspin{width:18px;height:18px;flex:none;border:3px solid rgba(177,140,240,.25);border-top-color:#b18cf0;border-radius:50%;animation:gemsp .8s linear infinite}
+  @keyframes gemsp{to{transform:rotate(360deg)}}
+  .gemdots i{font-style:normal;animation:gemblink 1.2s infinite both} .gemdots i:nth-child(2){animation-delay:.2s} .gemdots i:nth-child(3){animation-delay:.4s}
+  @keyframes gemblink{0%,80%,100%{opacity:.2}40%{opacity:1}}
   .chip.g{color:var(--blue);border-color:rgba(88,166,255,.4)} .chip.i{color:var(--accent);border-color:rgba(36,160,107,.4)}
   .chip.warn{color:var(--amber);border-color:rgba(210,153,34,.5)}
   .kcal{font-size:40px;font-weight:800;margin-top:10px} .kcal small{font-size:15px;color:var(--mut);font-weight:600}
@@ -250,14 +255,31 @@ async function geminiIdentify(){
 // Replace the current result with a Gemini-identified food and refresh nutrition.
 async function applyGemini(){
   if(!frozen||!last){ return; }
+  if($("result").className.indexOf('show')<0 || !last.usedGemini) renderGeminiPending();  // ensure the waiting state is up
   $("status").textContent='asking Gemini…';
   const food=await geminiIdentify();
-  if(!food){ $("status").textContent='Gemini could not identify'; return; }
+  if(!food){                                   // Gemini unavailable/failed -> fall back to the on-device guess
+    $("status").textContent='Gemini unavailable';
+    if(last.abstain){ $("rFood").textContent='not recognized';
+      $("rMeta").innerHTML=`<span class="chip warn">no food detected</span>`;
+      $("rKcal").innerHTML=`<small>point at a single food and retake</small>`; $("rMacros").innerHTML=''; $("rControls").innerHTML=''; }
+    else { render(last); await ensureNutrition(last.chosen.label); render(last); }
+    return;
+  }
   last.chosen={label:food, conf:[1,0,0,0,0], top5:[[food,1]]};
   last.abstain=false; last.confident=true; last.usedGemini=true;
   selSub=''; const _pm=FOODMETA[food]; selPrep=(_pm&&_pm.prep&&_pm.prep.length)?(_pm.prep.includes('raw')?'raw':_pm.prep[0]):'raw';
   render(last); await ensureNutrition(food); render(last);
   $("status").textContent='Gemini';
+}
+
+// "On-device system unsure -> asking Gemini" waiting state (replaces flashing the shaky guess).
+function renderGeminiPending(){
+  $("rFood").textContent='identifying…';
+  $("rMeta").innerHTML=`<span class="chip warn">on-device models unsure</span>`;
+  $("rAlt").textContent=''; $("rControls").innerHTML=''; $("rMacros").innerHTML='';
+  $("rKcal").innerHTML=`<span class="gemwait"><span class="gemspin"></span>🔮 asking Gemini vision<span class="gemdots"><i>.</i><i>.</i><i>.</i></span></span>`;
+  $("result").classList.add('show');
 }
 
 // Free ORT tensors (inputs) and run-output maps. ort-web tensors are backed by WASM/GPU memory that
@@ -362,11 +384,17 @@ async function analyze(){
   last={chosen, routeI, pIsr, confident, abstain, infMs};
   selSub=''; const _pm=FOODMETA[chosen.label];                          // reset prep/sub for the new food
   selPrep=(_pm&&_pm.prep&&_pm.prep.length)?(_pm.prep.includes('raw')?'raw':_pm.prep[0]):'raw';
-  render(last);
-  if(!abstain){ await ensureNutrition(chosen.label); render(last); }   // fill USDA if not in local DB
   $("stage").classList.remove('scanning');
-  $("status").textContent='done'; $("analyze").textContent='📷 New photo';
-  if(!confident || abstain){ await applyGemini(); }                    // unsure -> Gemini vision fallback
+  $("analyze").textContent='📷 New photo';
+  if((!confident || abstain) && USDA_PROXY){
+    // Unsure -> do NOT flash the shaky guess. Show a clean "asking Gemini" state, then Gemini's answer.
+    renderGeminiPending(); $("status").textContent='asking Gemini…';
+    await applyGemini();
+  }else{
+    render(last);
+    if(!abstain){ await ensureNutrition(chosen.label); render(last); }  // fill USDA if not in local DB
+    $("status").textContent='done';
+  }
 }
 let last=null;
 
