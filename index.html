@@ -155,7 +155,7 @@
         <circle cx="40" cy="20.5" r="1.7" fill="#eafff5"/>
         <path d="M17 42 Q34 54 51 42" fill="none" stroke="#eafff5" stroke-width="3.4" stroke-linecap="round" opacity=".9"/>
       </svg>
-      <div><div class="wm">CalEyeZ</div><div class="eng" id="epTag">—</div></div>
+      <div><div class="wm">CalEyeZ</div><div class="eng" id="epTag">-</div></div>
     </div>
     <div class="scanline"></div>
     <div class="scanlabel">SCANNING</div>
@@ -173,7 +173,7 @@
   </div>
 
   <div class="result" id="result">
-    <div class="food" id="rFood">—</div>
+    <div class="food" id="rFood">-</div>
     <div class="meta" id="rMeta"></div>
     <div id="rAlt" style="font-size:12px;color:var(--mut);margin:-2px 0 4px"></div>
     <div id="rControls"></div>
@@ -368,7 +368,7 @@ async function analyze(){
   const infMs=Math.round(performance.now()-t0);
   const g=feats(Object.values(go)[0].data, namesG, null);   // feats copies (Array.from) before dispose
   const i=feats(Object.values(io)[0].data, namesI, iBg);
-  dispose(tg,ti,go,io);   // free WASM/GPU tensor memory — not reclaimed by JS GC (critical on ?gpu=1)
+  dispose(tg,ti,go,io);   // free WASM/GPU tensor memory - not reclaimed by JS GC (critical on ?gpu=1)
 
   const f=[g.conf[0],g.conf[1],g.conf[2],g.conf[3],g.conf[4], g.entropy,g.margin,
            i.conf[0],i.conf[1],i.conf[2],i.conf[3],i.conf[4], i.entropy,i.margin, i.pbg,
@@ -498,7 +498,7 @@ async function connectScale(){
       for(const c of await s.getCharacteristics()){ if(c.uuid.includes('ffb2')){ ch=c; break; } }
       if(ch) break;
     }
-    if(!ch) throw new Error("weight characteristic (ffb2) not found — tell me the scale's service UUID");
+    if(!ch) throw new Error("weight characteristic (ffb2) not found - tell me the scale's service UUID");
     await ch.startNotifications();
     ch.addEventListener('characteristicvaluechanged', onWeight);
     dev.addEventListener('gattserverdisconnected', ()=>{$("scaleBtn").textContent='⚖ reconnect';});
@@ -520,7 +520,7 @@ const LKEY='caleyez_log';
 const loadLog=()=>{try{return JSON.parse(localStorage.getItem(LKEY)||'[]');}catch(e){return [];}};
 const saveLog=a=>localStorage.setItem(LKEY,JSON.stringify(a));
 function logMeal(){
-  if(!last || last.abstain){ alert('Nothing to log yet — analyze a recognized food first.'); return; }
+  if(!last || last.abstain){ alert('Nothing to log yet - analyze a recognized food first.'); return; }
   const g=+$("grams").value||0, nut=effNut(last.chosen.label), r=g/100;
   const row={ts:Date.now(), food:last.chosen.label, grams:g, expert:last.routeI?'israeli':'global',
     sub:selSub||null, method:(selPrep&&selPrep!=='raw')?selPrep:null,
@@ -546,7 +546,7 @@ function renderHistory(){
         <span><i style="background:var(--accent)"></i>${r.fat}g fat</span></div>`:'';
     return `<div class="logrow"><div class="lh">
         <span class="lf">${r.food.replace(/_/g,' ')} <span class="lsub">${r.sub?r.sub+' · ':''}${r.method?r.method.replace(/_/g,' ')+' · ':''}${r.grams}g · ${tm}</span></span>
-        <span class="lk">${r.kcal!=null?r.kcal+' kcal':'—'}</span></div>${macros}</div>`;
+        <span class="lk">${r.kcal!=null?r.kcal+' kcal':'-'}</span></div>${macros}</div>`;
   }).join('') || '<span class="chip">no entries today</span>';
 }
 $("logBtn").onclick=logMeal;

@@ -75,6 +75,11 @@
   .calc{font:12px var(--mono);color:var(--mut);margin-top:10px;line-height:1.7}
   .calc b{color:var(--ink)} .calc .lo{color:var(--lgreen)} .calc .hi{color:var(--blue)} .calc .carry{color:var(--amber)}
   .gramsBig{font:800 30px var(--mono);color:var(--lgreen)}
+  .gemwait{display:inline-flex;align-items:center;gap:9px;color:#c9a4ff;font-weight:700}
+  .gemspin{width:15px;height:15px;flex:none;border:3px solid rgba(163,113,247,.25);border-top-color:#c9a4ff;border-radius:50%;animation:gemsp .8s linear infinite}
+  @keyframes gemsp{to{transform:rotate(360deg)}}
+  .gemdots i{font-style:normal;animation:gemblink 1.2s infinite both} .gemdots i:nth-child(2){animation-delay:.2s} .gemdots i:nth-child(3){animation-delay:.4s}
+  @keyframes gemblink{0%,80%,100%{opacity:.2}40%{opacity:1}}
   .note{border-left:3px solid var(--amber);padding:6px 0 6px 10px;margin-top:10px;color:var(--mut);font-size:11.5px;line-height:1.6}
   .note b{color:var(--amber)}
 </style>
@@ -90,7 +95,7 @@
       <rect x="30" y="23" width="8" height="8" rx="1.4" fill="none" stroke="#46c98d" stroke-width="1.4"/>
       <path d="M17 42 Q34 54 51 42" fill="none" stroke="#143a63" stroke-width="3.4" stroke-linecap="round"/>
     </svg>
-    <div><h1>Engineering Console</h1><div class="sub">every layer, one capture · <span id="epTag">—</span></div></div>
+    <div><h1>Engineering Console</h1><div class="sub">every layer, one capture · <span id="epTag">-</span></div></div>
     <a href="./">← App</a>
   </header>
 
@@ -105,7 +110,7 @@
   <div id="out">
     <div><h2><span class="n">1</span> Preprocessing</h2>
       <div class="card"><div class="pipe" id="pipe"></div>
-        <div class="muted" style="margin-top:8px">Central ROI (60%) → resize to each model's input → ÷255, RGB, CHW. No ImageNet norm — identical to the desktop pipeline.</div></div></div>
+        <div class="muted" style="margin-top:8px">Central ROI (60%) → resize to each model's input → ÷255, RGB, CHW. No ImageNet norm - identical to the desktop pipeline.</div></div></div>
 
     <div><h2><span class="n">2</span> Expert models</h2>
       <div class="two"><div class="card expert" id="cardG"></div><div class="card expert isr" id="cardI"></div></div></div>
@@ -128,14 +133,14 @@
     <div class="card">
       <div class="muted" style="margin-bottom:8px">CalEyeZ runs the full pipeline <b style="color:var(--ink)">on-device</b>
         (no cloud inference), so the browser and hardware set the limits. It does <b style="color:var(--ink)">not</b>
-        run identically on every phone — here is exactly what it needs and why.</div>
+        run identically on every phone - here is exactly what it needs and why.</div>
       <table><thead><tr><th>requirement</th><th>needs</th><th>why</th></tr></thead><tbody>
         <tr><td>WebAssembly + SIMD</td><td>any modern browser (2021+)</td><td>onnxruntime-web executes the two CNNs in WASM; SIMD is what makes ~0.6 s inference possible</td></tr>
         <tr><td>Camera</td><td>getUserMedia over HTTPS</td><td>secure-context only; the ROI crop is read straight off the video frame</td></tr>
-        <tr class="inter"><td>BLE scale (SWAN)</td><td>Web Bluetooth — Android Chrome/Edge only</td><td>iOS (Safari <i>and</i> Chrome-iOS, both WebKit) and Firefox block Web Bluetooth → on iPhone the scale can't pair, so weight falls back to manual grams</td></tr>
+        <tr class="inter"><td>BLE scale (SWAN)</td><td>Web Bluetooth - Android Chrome/Edge only</td><td>iOS (Safari <i>and</i> Chrome-iOS, both WebKit) and Firefox block Web Bluetooth → on iPhone the scale can't pair, so weight falls back to manual grams</td></tr>
         <tr><td>WebGPU (optional, <code>?gpu=1</code>)</td><td>WebGPU-capable browser + GPU</td><td>faster fp16 compute path; default is WASM fp32 because some mobile GPUs lose accuracy in fp16</td></tr>
         <tr><td>Memory / download</td><td>~50 MB models, ≳2 GB RAM</td><td>global fp16 ≈25 MB (320², 132 cls) + israeli fp16 ≈25 MB (224², 13+bg); WASM upcasts fp16→fp32 at run time, so a few hundred MB is touched during inference</td></tr>
-        <tr><td>Network</td><td>first load only</td><td>models fetch once from GitHub Pages then HTTP-cache; recognition then works offline — only USDA nutrition lookups need the network</td></tr>
+        <tr><td>Network</td><td>first load only</td><td>models fetch once from GitHub Pages then HTTP-cache; recognition then works offline - only USDA nutrition lookups need the network</td></tr>
       </tbody></table>
       <div class="note" style="border-left-color:var(--blue)"><b style="color:var(--blue)">Bottom line:</b> best experience is
         <b style="color:var(--ink)">Android Chrome</b> (full feature set incl. BLE scale). iPhone/Safari runs recognition +
@@ -255,15 +260,35 @@ function renderAll(r){
       ${gate(!r.arbUnsure,'arbiter decisive',`|P−0.5|=${Math.abs(r.pIsr-0.5).toFixed(2)} ≥ ${ARB_BAND}`)}
       ${gate(!r.abstain,'not background',r.abstain?'Israeli said background':'ok')}
     </div>
-    <div class="stat"><span>final verdict <b class="${r.confident?'ok':'no'}">${r.confident?'CONFIDENT':'LOW-CONF → would defer to fallback'}</b></span></div>`;
+    <div class="stat"><span>final verdict <b class="${r.confident?'ok':'no'}">${r.confident?'CONFIDENT':'LOW-CONF → Gemini fallback'}</b></span></div>
+    ${r.confident?'':'<div id="gemBox" class="muted" style="margin-top:8px"></div>'}`;
 
-  // 5 · nutrition — reset prep/sub for the new food, then resolve (async: fetches USDA candidates)
+  // 5 · nutrition - reset prep/sub for the new food, then resolve (async: fetches USDA candidates)
   const label=r.abstain?null:r.chosen.label;
   lastLabel=label; lastUSDA=undefined;
   selSubE=''; const _m=FOODMETA[label];
   selPrepE=(_m&&_m.prep&&_m.prep.length)?(_m.prep.includes('raw')?'raw':_m.prep[0]):'raw';
   renderNutrition();
   $("out").style.display='flex';
+  if(!r.confident) geminiStepE();   // low-confidence -> actually run Gemini and show its identification
+}
+
+// Gemini fallback step for the console: POST the ROI, show the waiting state, then the identified food,
+// and re-point the nutrition section (5) at Gemini's answer. Mirrors the app's applyGemini().
+async function geminiStepE(){
+  const box=$("gemBox"); if(!box||!USDA_PROXY) return;
+  box.innerHTML=`<span class="gemwait"><span class="gemspin"></span>asking Gemini vision<span class="gemdots"><i>.</i><i>.</i><i>.</i></span></span>`;
+  let food=null;
+  try{
+    const img=roiCanvas(G_SZ).toDataURL('image/jpeg',0.9);
+    const rr=await fetch(USDA_PROXY,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({image:img})});
+    const j=rr.ok?await rr.json():null; food=j&&j.food?j.food:null;
+  }catch(e){}
+  if(!food){ box.innerHTML=`<span class="no">🔮 Gemini: no food identified</span> <span class="muted">(nutrition below stays on the on-device guess)</span>`; return; }
+  box.innerHTML=`→ <b style="color:#c9a4ff">🔮 Gemini vision</b>: <b style="color:var(--ink)">${pretty(food)}</b> <span class="muted">- overrides the low-confidence on-device guess; nutrition below now resolves this.</span>`;
+  lastLabel=food; lastUSDA=undefined; selSubE=''; const _m=FOODMETA[food];
+  selPrepE=(_m&&_m.prep&&_m.prep.length)?(_m.prep.includes('raw')?'raw':_m.prep[0]):'raw';
+  renderNutrition();
 }
 
 let lastUSDA=undefined;   // undefined=not fetched, null=miss, object=hit (with _candidates on debug)
@@ -295,18 +320,18 @@ async function renderNutrition(){
   if(meta.prep&&meta.prep.length) ctl+=`<span class="muted">prep </span><select style="${S_SEL}" onchange="onPrepE(this.value)">`+
     meta.prep.map(k=>`<option value="${k}" ${k===selPrepE?'selected':''}>${k.replace(/_/g,' ')}</option>`).join('')+`</select>`;
 
-  let body=`<div class="muted">query: <b style="color:var(--ink)">"${q}"</b> · source: <b style="color:var(--ink)">${src||'—'}</b></div>`;
+  let body=`<div class="muted">query: <b style="color:var(--ink)">"${q}"</b> · source: <b style="color:var(--ink)">${src||'-'}</b></div>`;
   if(ctl) body+=`<div style="display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin:8px 0">${ctl}</div>`;
 
   // smart-filter candidate table (only when we hit USDA in debug mode)
   if(lastUSDA && lastUSDA._candidates){
-    body+=`<div class="muted" style="margin-top:6px">USDA smart filter — top candidates ranked (score = primary-name + token overlap; junk tokens rejected):</div>
+    body+=`<div class="muted" style="margin-top:6px">USDA smart filter - top candidates ranked (score = primary-name + token overlap; junk tokens rejected):</div>
       <table style="margin-top:4px"><thead><tr><th>candidate</th><th style="text-align:right">score</th><th>verdict</th></tr></thead><tbody>`+
       lastUSDA._candidates.map((c,idx)=>{
         const chosen=c.kept&&idx===lastUSDA._candidates.findIndex(x=>x.kept);
         const verdict=c.kept?(chosen?'<span class="ok">✓ chosen</span>':'kept'):`<span class="no">✗ ${c.reject}</span>`;
         return `<tr><td style="${chosen?'color:var(--lgreen)':c.kept?'':'color:var(--mut)'}">${c.desc}</td>
-          <td class="v">${c.score==null?'—':c.score}</td><td>${verdict}</td></tr>`;}).join('')+`</tbody></table>`;
+          <td class="v">${c.score==null?'-':c.score}</td><td>${verdict}</td></tr>`;}).join('')+`</tbody></table>`;
   }
 
   // prep multiplier math (cited with n + CI)
@@ -315,7 +340,7 @@ async function renderNutrition(){
     if(selPrepE&&selPrepE!=='raw'&&cm){
       kcal=base.kcal*cm.factor; fat=base.fat+cm.added_fat_g;
       mathline=`<pre>prep = ${selPrepE.replace(/_/g,' ')}
-kcal = base ${base.kcal.toFixed(0)} × ${cm.factor} (USDA cooked/raw, n=${cm.n}, CI95 ${cm.ci95[0]}–${cm.ci95[1]}) = ${kcal.toFixed(0)} /100g
+kcal = base ${base.kcal.toFixed(0)} × ${cm.factor} (USDA cooked/raw, n=${cm.n}, CI95 ${cm.ci95[0]}-${cm.ci95[1]}) = ${kcal.toFixed(0)} /100g
 fat  = base ${base.fat.toFixed(1)} + ${cm.added_fat_g} g absorbed oil = ${fat.toFixed(1)} g /100g</pre>`;
     } else {
       mathline=`<pre>prep = raw/standard → base used unchanged: ${base.kcal.toFixed(0)} kcal /100g</pre>`;
@@ -323,12 +348,12 @@ fat  = base ${base.fat.toFixed(1)} + ${cm.added_fat_g} g absorbed oil = ${fat.to
     body+=`<div class="stat" style="margin-top:8px"><span>per 100 g → <b style="color:var(--lgreen)">${kcal.toFixed(0)} kcal</b></span>
       <span>protein <b>${(base.pro||0).toFixed(1)}</b></span><span>carb <b>${(base.carb||0).toFixed(1)}</b></span><span>fat <b>${fat.toFixed(1)}</b></span></div>${mathline}`;
   } else {
-    body+=`<pre>not in local DB and no USDA hit → app shows —</pre>`;
+    body+=`<pre>not in local DB and no USDA hit → app shows -</pre>`;
   }
   card.innerHTML=body;
 }
 
-// 6 · BLE weight decode — full SWAN packet (protocol reverse-engineered; see main-repo index.html "BLE Scale").
+// 6 · BLE weight decode - full SWAN packet (protocol reverse-engineered; see main-repo index.html "BLE Scale").
 // Layout: [0]header AC [1]len 05 [2]unit [3]status/high-bits(256 carry) [4]low [5]high [6]magic CE [7]checksum
 let wbuf=[], bleLive=false;
 const hex=b=>b.toString(16).toUpperCase().padStart(2,'0');
@@ -358,8 +383,8 @@ function renderBle(pkt,live){
       median(last ${wbuf.length}) = <span class="gramsBig">${med} g</span>
     </div>
     <div class="note"><b>Carry-byte bug:</b> the first decode masked bit0 (<code>byte[5]&amp;0xFE</code>), silently dropping every 256 g
-      step — 272 g read as 16 g. Fix: OR byte[3] in and keep bit0, so weights above 255 g survive. The <b>checksum</b>
-      (additive over bytes 2–6) rejects corrupt packets, and a 5-sample <b>median filter</b> rejects the flicker/overshoot
+      step - 272 g read as 16 g. Fix: OR byte[3] in and keep bit0, so weights above 255 g survive. The <b>checksum</b>
+      (additive over bytes 2-6) rejects corrupt packets, and a 5-sample <b>median filter</b> rejects the flicker/overshoot
       the load cell emits while settling.</div>`;
   const b=$("scaleBtn"); if(b) b.onclick=connectScale;
 }
