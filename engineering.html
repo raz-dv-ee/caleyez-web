@@ -159,6 +159,8 @@ let G,I,ARB,namesG,namesI,iBg,NUTR={},frozen=false;
 let FOODMETA={},COOKMULT={},selSubE='',selPrepE='raw',lastLabel=null;   // prep/sub state for Section 5
 
 const mk=async u=>ort.InferenceSession.create(await (await fetch(u)).arrayBuffer(),{executionProviders:['wasm']});
+function disposeT(...items){for(const it of items){if(!it)continue;
+  if(typeof it.dispose==='function')it.dispose(); else for(const k in it){it[k]&&it[k].dispose&&it[k].dispose();}}}
 function arbiterP(f){let m=ARB.base;for(const t of ARB.trees){let n=t["0"];while(n.length>1)n=t[f[n[0]]<n[1]?n[2]:n[3]];m+=n[0];}return 1/(1+Math.exp(-m));}
 const pretty=s=>s.replace(/_/g,' ');
 
@@ -194,8 +196,10 @@ async function analyze(){
     $("cam").style.display='none';$("retake").style.display='';frozen=true;await new Promise(r=>{$("shot").onload=r;if($("shot").complete)r();});}
   $("analyze").textContent='tracing…';
   const cg=roiCanvas(G_SZ),ci=roiCanvas(I_SZ);
-  const go=await G.run({[G.inputNames[0]]:tensor(cg,G_SZ)}), io=await I.run({[I.inputNames[0]]:tensor(ci,I_SZ)});
+  const tG=tensor(cg,G_SZ), go=await G.run({[G.inputNames[0]]:tG});
+  const tI=tensor(ci,I_SZ), io=await I.run({[I.inputNames[0]]:tI});
   const g=feats(Object.values(go)[0].data,namesG,null), i=feats(Object.values(io)[0].data,namesI,iBg);
+  disposeT(tG,tI,go,io);   // free WASM/GPU tensor memory (not reclaimed by JS GC) - avoids OOM over many captures
   const f=[g.conf[0],g.conf[1],g.conf[2],g.conf[3],g.conf[4],g.entropy,g.margin,
     i.conf[0],i.conf[1],i.conf[2],i.conf[3],i.conf[4],i.entropy,i.margin,i.pbg,
     g.conf[0]-i.conf[0],g.conf[0]/(i.conf[0]+1e-6),i.entropy-g.entropy,g.margin-i.margin,((g.conf[0]<0.5)&&(i.conf[0]<0.5))?1:0];

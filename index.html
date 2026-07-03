@@ -260,6 +260,14 @@ async function applyGemini(){
   $("status").textContent='Gemini';
 }
 
+// Free ORT tensors (inputs) and run-output maps. ort-web tensors are backed by WASM/GPU memory that
+// the JS garbage collector does NOT reclaim; without this the heap grows every capture (crashes on GPU).
+function dispose(...items){ for(const it of items){
+  if(!it) continue;
+  if(typeof it.dispose==='function'){ it.dispose(); }         // a Tensor
+  else { for(const k in it){ it[k] && it[k].dispose && it[k].dispose(); } }  // a run() output map
+}}
+
 async function mk(url,ep){return ort.InferenceSession.create(await (await fetch(url)).arrayBuffer(),{executionProviders:ep});}
 
 async function boot(){
@@ -291,9 +299,10 @@ async function boot(){
 async function warmup(){
   const cv=$("cv"), ctx=cv.getContext('2d');
   cv.width=G_SZ;cv.height=G_SZ;ctx.fillStyle='#333';ctx.fillRect(0,0,G_SZ,G_SZ);
-  await G.run({[G.inputNames[0]]:tensorFromCanvas(cv,G_SZ)});
+  const tg=tensorFromCanvas(cv,G_SZ), go=await G.run({[G.inputNames[0]]:tg});
   cv.width=I_SZ;cv.height=I_SZ;ctx.fillStyle='#333';ctx.fillRect(0,0,I_SZ,I_SZ);
-  await I.run({[I.inputNames[0]]:tensorFromCanvas(cv,I_SZ)});
+  const ti=tensorFromCanvas(cv,I_SZ), io=await I.run({[I.inputNames[0]]:ti});
+  dispose(tg,ti,go,io);
 }
 
 // ---- preprocessing: central ROI(0.60) square -> resize to sz -> /255 RGB CHW (matches desktop) ----
@@ -331,10 +340,13 @@ async function analyze(){
   }
   $("status").textContent='analyzing…'; $("stage").classList.add('scanning');
   await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));  // let the scan animation paint
-  const go=await G.run({[G.inputNames[0]]:tensorFromCanvas(drawROI(G_SZ),G_SZ)});
-  const io=await I.run({[I.inputNames[0]]:tensorFromCanvas(drawROI(I_SZ),I_SZ)});
-  const g=feats(Object.values(go)[0].data, namesG, null);
+  const t0=performance.now();
+  const tg=tensorFromCanvas(drawROI(G_SZ),G_SZ), go=await G.run({[G.inputNames[0]]:tg});
+  const ti=tensorFromCanvas(drawROI(I_SZ),I_SZ), io=await I.run({[I.inputNames[0]]:ti});
+  const infMs=Math.round(performance.now()-t0);
+  const g=feats(Object.values(go)[0].data, namesG, null);   // feats copies (Array.from) before dispose
   const i=feats(Object.values(io)[0].data, namesI, iBg);
+  dispose(tg,ti,go,io);   // free WASM/GPU tensor memory — not reclaimed by JS GC (critical on ?gpu=1)
 
   const f=[g.conf[0],g.conf[1],g.conf[2],g.conf[3],g.conf[4], g.entropy,g.margin,
            i.conf[0],i.conf[1],i.conf[2],i.conf[3],i.conf[4], i.entropy,i.margin, i.pbg,
@@ -347,7 +359,7 @@ async function analyze(){
   const arbUnsure=Math.abs(pIsr-0.5)<ARB_BAND;
   const abstain=routeI && chosen.label==='background';
   const confident=chosen.conf[0]>=gate && !bothUnsure && !arbUnsure && !abstain;
-  last={chosen, routeI, pIsr, confident, abstain};
+  last={chosen, routeI, pIsr, confident, abstain, infMs};
   selSub=''; const _pm=FOODMETA[chosen.label];                          // reset prep/sub for the new food
   selPrep=(_pm&&_pm.prep&&_pm.prep.length)?(_pm.prep.includes('raw')?'raw':_pm.prep[0]):'raw';
   render(last);
@@ -386,11 +398,12 @@ function controlsHTML(label){
 function onSub(v){ selSub=v; if(last) render(last); }
 function onPrep(v){ selPrep=v; if(last) render(last); }
 
-function render({chosen, routeI, pIsr, confident, abstain, usedGemini}){
+function render({chosen, routeI, pIsr, confident, abstain, usedGemini, infMs}){
   const pretty=s=>s.replace(/_/g,' ');
   const label = abstain ? 'not recognized' : pretty(chosen.label);
   $("rFood").textContent=label;
   const meta=[];
+  if(infMs!=null) meta.push(`<span class="chip" style="background:#123a2a;color:#46c98d" title="Both CNNs + arbiter ran in your browser via WebAssembly. No image left the device for recognition.">⚡ ${infMs} ms · on-device edge</span>`);
   if(usedGemini){
     meta.push(`<span class="chip" style="background:#6f42c1;color:#fff">🔮 Gemini vision</span>`);
     meta.push(`<span class="chip">on-device system was unsure</span>`);
