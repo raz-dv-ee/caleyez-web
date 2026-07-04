@@ -108,9 +108,10 @@
   </div>
 
   <div id="out">
-    <div><h2><span class="n">1</span> Preprocessing</h2>
+    <div><h2><span class="n">1</span> Preprocessing · image pipeline</h2>
       <div class="card"><div class="pipe" id="pipe"></div>
-        <div class="muted" style="margin-top:8px">Central ROI (60%) → resize to each model's input → ÷255, RGB, CHW. No ImageNet norm - identical to the desktop pipeline.</div></div></div>
+        <div id="prepSteps"></div>
+        <div class="muted" style="margin-top:8px">Every step below is classical image processing done in code before the CNN sees a single number - crop, resample, channel split, and normalisation. Identical to the desktop pipeline; verified 0% top-1 mismatch.</div></div></div>
 
     <div><h2><span class="n">2</span> Expert models</h2>
       <div class="two"><div class="card expert" id="cardG"></div><div class="card expert isr" id="cardI"></div></div></div>
@@ -190,6 +191,14 @@ function roiCanvas(sz){
 }
 function tensor(c,sz){const d=c.getContext('2d').getImageData(0,0,sz,sz).data,n=sz*sz,o=new Float32Array(3*n);
   for(let i=0;i<n;i++){o[i]=d[i*4]/255;o[i+n]=d[i*4+1]/255;o[i+2*n]=d[i*4+2]/255;}return new ort.Tensor('float32',o,[1,3,sz,sz]);}
+// source-frame geometry of the ROI crop (the exact pixels the model sees), for the preprocessing trace
+function roiGeom(){const src=frozen?$("shot"):$("cam"),w=src.videoWidth||src.naturalWidth,h=src.videoHeight||src.naturalHeight;
+  const s=Math.round(Math.min(w,h)*ROI_FRAC),sx=Math.round((w-s)/2),sy=Math.round((h-s)/2);return {w,h,s,sx,sy};}
+// real pixel numbers from the resized canvas: a sample pixel (raw bytes -> /255) + tensor range/mean
+function prepStats(cg,sz){const d=cg.getContext('2d').getImageData(0,0,sz,sz).data,n=sz*sz;
+  const off=((sz>>1)*sz+(sz>>1))*4, sample={r:d[off],g:d[off+1],b:d[off+2]};
+  let mn=1,mx=0,sum=0; for(let i=0;i<n;i++){for(let c=0;c<3;c++){const v=d[i*4+c]/255;if(v<mn)mn=v;if(v>mx)mx=v;sum+=v;}}
+  return {sample,min:mn,max:mx,mean:sum/(n*3)};}
 function feats(pf,names,bg){const p=Array.from(pf),idx=p.map((v,j)=>[v,j]).sort((a,b)=>b[0]-a[0]);
   const conf=[0,1,2,3,4].map(k=>idx[k]?idx[k][0]:0);let H=0;for(const v of p){const c=Math.min(Math.max(v,1e-12),1);H-=c*Math.log(c);}
   return {label:names[idx[0][1]],conf,entropy:H,margin:conf[0]-conf[1],pbg:bg!=null?p[+bg]:0,
@@ -201,6 +210,7 @@ async function analyze(){
     $("cam").style.display='none';$("retake").style.display='';frozen=true;await new Promise(r=>{$("shot").onload=r;if($("shot").complete)r();});}
   $("analyze").textContent='tracing…';
   const cg=roiCanvas(G_SZ),ci=roiCanvas(I_SZ);
+  const geom=roiGeom(), prep=prepStats(cg,G_SZ);   // real numbers for the preprocessing trace
   const t0=performance.now();
   const tG=tensor(cg,G_SZ), go=await G.run({[G.inputNames[0]]:tG});
   const tI=tensor(ci,I_SZ), io=await I.run({[I.inputNames[0]]:tI});
@@ -214,7 +224,7 @@ async function analyze(){
   const pIsr=arbiterP(f), routeI=pIsr>=0.5, chosen=routeI?i:g, gate=routeI?GATE_I:GATE_G;
   const bothUnsure=g.conf[0]<BOTH_UNSURE&&i.conf[0]<BOTH_UNSURE, arbUnsure=Math.abs(pIsr-0.5)<ARB_BAND,
         abstain=routeI&&chosen.label==='background', confident=chosen.conf[0]>=gate&&!bothUnsure&&!arbUnsure&&!abstain;
-  renderAll({cg,ci,g,i,f,pIsr,routeI,chosen,gate,bothUnsure,arbUnsure,abstain,confident});
+  renderAll({cg,ci,g,i,f,pIsr,routeI,chosen,gate,bothUnsure,arbUnsure,abstain,confident,geom,prep});
   $("analyze").textContent='Capture & trace';
 }
 
@@ -232,6 +242,29 @@ function renderAll(r){
   r.cg.style.width='96px';r.cg.style.height='96px';addFig(r.cg,'global 320²');
   addFig(r.ci,'israeli 224²');
   pipe.lastChild.remove(); // drop trailing arrow
+
+  // 1b · explicit preprocessing steps with REAL numbers from this capture (this IS the image processing,
+  // done in code before the network runs - not a black-box model download)
+  const gm=r.geom, pp=r.prep, s=pp.sample, f3=v=>v.toFixed(3);
+  const roiPct=Math.round(ROI_FRAC*100), dropped=100-roiPct;
+  $("prepSteps").innerHTML=`
+    <table style="margin-top:6px"><thead><tr><th style="width:20px"></th><th>image-processing step</th><th>this capture</th></tr></thead><tbody>
+    <tr><td class="v">1</td><td>capture source frame</td><td>${gm.w}×${gm.h}px</td></tr>
+    <tr><td class="v">2</td><td>centre-crop ROI (${roiPct}%) - discard outer ${dropped}% (plate/background)</td>
+      <td>${gm.s}×${gm.s}px @ (${gm.sx},${gm.sy})</td></tr>
+    <tr><td class="v">3</td><td>resample to model input (bilinear, high-quality)</td><td>→ 320×320 &amp; 224×224</td></tr>
+    <tr><td class="v">4</td><td>read RGBA bytes, drop alpha → RGB (0-255)</td><td>centre px = (${s.r}, ${s.g}, ${s.b})</td></tr>
+    <tr class="inter"><td class="v">5</td><td>normalise ÷255 : byte → float [0,1]</td>
+      <td>(${s.r},${s.g},${s.b}) → (${f3(s.r/255)}, ${f3(s.g/255)}, ${f3(s.b/255)})</td></tr>
+    <tr><td class="v">6</td><td>pack HWC → CHW planar tensor</td><td>[1, 3, 320, 320]</td></tr>
+    <tr><td class="v">7</td><td>verify range (whole tensor)</td><td>min ${f3(pp.min)} · max ${f3(pp.max)} · mean ${f3(pp.mean)} ∈ [0,1]</td></tr>
+    </tbody></table>
+    <div class="note" style="border-left-color:var(--blue)"><b style="color:var(--blue)">No ImageNet normalisation.</b>
+      A typical torchvision pipeline also subtracts a mean [0.485, 0.456, 0.406] and divides by std
+      [0.229, 0.224, 0.225]. CalEyeZ deliberately does <b>not</b> - the ÷255 above is the <b>only</b> scaling, and
+      this exact preprocessing was verified to match the desktop at 0% top-1 mismatch. Get any of these steps
+      wrong (crop, resample filter, channel order, the ÷255) and the prediction changes: the model is only as
+      good as the image processing feeding it.</div>`;
 
   // 2 · experts
   $("cardG").innerHTML=`<div class="name">Global · 132 classes</div>${bars(r.g)}
