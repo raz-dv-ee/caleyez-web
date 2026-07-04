@@ -178,6 +178,9 @@
     <button class="mini" id="soundBtn" title="sound on/off">🔊</button>
     <span class="chip" id="status" style="margin-left:auto">warming up…</span>
   </div>
+  <div id="calnote" style="font-size:11px;color:var(--mut);margin-top:4px" title="corrected = 9.676 + 1.16208 x raw, fit from 6 reference masses vs two calibrated scales (R^2=0.9996)">
+    ⚖ Weight is software-calibrated, so it will not match the scale's LCD: the scale reads ~16% low, and we correct it to ~1% (why?).
+  </div>
 
   <div class="result" id="result">
     <div class="food" id="rFood">-</div>
@@ -218,6 +221,13 @@ const MODEL_BASE="https://raz-dv-ee.github.io/CalEyeZ/webmodels/";
 
 // ---- exact desktop constants ----
 const G_SZ=320, I_SZ=224, ROI_FRAC=0.60;
+// Scale calibration. The IDOdan load cell reads a steady ~16% LOW (a fixed SPAN error), so its
+// raw grams (and its own LCD) are not the true mass. We fit corrected = CAL_A + CAL_B*raw from 6
+// reference masses (50-1062 g) measured against two calibrated scales: R^2=0.9996, raw error
+// 16.2% -> ~1% after correction. This is why the app shows a DIFFERENT (correct) number than the
+// scale's LCD. See engineering.html "Weight calibration".
+const CAL_A=9.676, CAL_B=1.16208;
+const calibrate=raw=>Math.max(0, Math.round(CAL_A + CAL_B*raw));
 const GATE_G=0.55, GATE_I=0.60, BOTH_UNSURE=0.50, ARB_BAND=0.15;
 // USDA lookup goes through YOUR proxy (Cloudflare Worker) so the key never ships in this public repo.
 // Set this to your Worker URL, e.g. "https://caleyez-usda.<you>.workers.dev". Empty = local DB only.
@@ -581,7 +591,8 @@ function onWeight(e){
   const low=d.getUint8(4), high=d.getUint8(5)|d.getUint8(3);   // do NOT mask bit0 (drops 256 g)
   wbuf.push(low+high*256); if(wbuf.length>5) wbuf.shift();
   const s=[...wbuf].sort((a,b)=>a-b); const med=s[s.length>>1]; // median rejects flicker/overshoot
-  $("grams").value=med; if(last) render(last);
+  $("grams").value=calibrate(med);          // correct the scale's ~16% span error (see engineering.html)
+  if(last) render(last);
 }
 $("scaleBtn").onclick=connectScale;
 

@@ -6,3 +6,6 @@ caleyez_keys.txt
 # Wrangler / Cloudflare local state
 .wrangler/
 node_modules/
+
+# local design notes (never published)
+_design/
