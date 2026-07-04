@@ -400,7 +400,7 @@ function renderBle(pkt,live){
   const sum=(pkt[2]+pkt[3]+pkt[4]+pkt[5]+pkt[6])&0xFF, sumOK=sum===pkt[7];   // Σ bytes 2..6, low 8 bits
   wbuf.push(grams); if(wbuf.length>5) wbuf.shift();
   const s=[...wbuf].sort((a,b)=>a-b), med=s[s.length>>1];
-  const CAL_A=9.676, CAL_B=1.16208, corr=Math.max(0,Math.round(CAL_A+CAL_B*med));   // span-error correction
+  const CAL_A=0.0, CAL_B=1.17804, corr=Math.max(0,Math.round(CAL_A+CAL_B*med));   // through-origin span correction
   const cls=i=>i===4?'lo':i===5?'hi':i===3?'carry':i===7?'sum':(i===0||i===6)?'frame':'';
   const cell=i=>`<div class="byte ${cls(i)}"><div class="idx">[${i}]</div><div class="hex">${hex(pkt[i])}</div>
     <div class="dec">${pkt[i]}</div><div class="role">${ROLES[i]}</div></div>`;
@@ -422,9 +422,9 @@ function renderBle(pkt,live){
       <span style="color:#46c98d">calibrated = ${CAL_A} + ${CAL_B}·${med} = <span class="gramsBig" style="color:#46c98d">${corr} g</span></span> <span class="muted">← shown to the user</span>
     </div>
     <div class="note"><b>Why the app ≠ the scale's LCD.</b> The IDOdan load cell reads a steady <b>~16% low</b> - a fixed
-      <b>span error</b>, not random noise. We measured 6 reference masses (50-1062 g) against two calibrated scales and fit a
-      one-line correction <code>corrected = 9.676 + 1.16208·raw</code> (<b>R²=0.9996</b>), turning a 16.2% error into <b>~1%</b>.
-      The app therefore shows the <i>corrected</i> mass, which is the true weight - the scale's own display is the uncorrected raw value.
+      <b>span error</b>, not random noise. We measured 10 reference masses (21-1062 g) against a calibrated scale; the error is a
+      pure multiplicative span, so the correction passes through the origin: <code>corrected = 1.178·raw</code> (residual ~5 g),
+      turning a 16% error into ~1-3%. The app therefore shows the <i>corrected</i> mass, which is the true weight - the scale's own display is the uncorrected raw value.
       <br><br><b>Carry-byte bug:</b> the first decode masked bit0 (<code>byte[5]&amp;0xFE</code>), silently dropping every 256 g
       step - 272 g read as 16 g. Fix: OR byte[3] in and keep bit0, so weights above 255 g survive. The <b>checksum</b>
       (additive over bytes 2-6) rejects corrupt packets, and a 5-sample <b>median filter</b> rejects the flicker/overshoot

@@ -222,11 +222,11 @@ const MODEL_BASE="https://raz-dv-ee.github.io/CalEyeZ/webmodels/";
 // ---- exact desktop constants ----
 const G_SZ=320, I_SZ=224, ROI_FRAC=0.60;
 // Scale calibration. The IDOdan load cell reads a steady ~16% LOW (a fixed SPAN error), so its
-// raw grams (and its own LCD) are not the true mass. We fit corrected = CAL_A + CAL_B*raw from 6
-// reference masses (50-1062 g) measured against two calibrated scales: R^2=0.9996, raw error
-// 16.2% -> ~1% after correction. This is why the app shows a DIFFERENT (correct) number than the
-// scale's LCD. See engineering.html "Weight calibration".
-const CAL_A=9.676, CAL_B=1.16208;
+// raw grams (and its own LCD) are not the true mass. Fit over 10 reference masses (21-1062 g) vs a
+// calibrated scale: the error is a pure multiplicative span, so the correction is through-origin
+// corrected = CAL_B*raw (CAL_A=0). Residual ~5 g. This is why the app shows a DIFFERENT (correct)
+// number than the scale's LCD. See engineering.html "Weight calibration".
+const CAL_A=0.0, CAL_B=1.17804;
 const calibrate=raw=>Math.max(0, Math.round(CAL_A + CAL_B*raw));
 const GATE_G=0.55, GATE_I=0.60, BOTH_UNSURE=0.50, ARB_BAND=0.15;
 // USDA lookup goes through YOUR proxy (Cloudflare Worker) so the key never ships in this public repo.
