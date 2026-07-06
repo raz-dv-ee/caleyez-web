@@ -190,10 +190,13 @@
       </div>
 
       <div class="calc" style="margin-top:12px">
-        We fit on <b>10 reference masses (21-1062 g)</b>, 5 reads each, centred on a spreader plate. The error is a
-        pure multiplicative <b>span error</b> (not a fixed offset), so the least-squares correction passes through the origin:<br>
-        <span style="color:#46c98d">corrected_g = &Sigma;(raw·true) / &Sigma;(raw&sup2;) · raw = <b>1.178 · raw</b></span>
-        &nbsp;(a two-parameter line adds a +2.85 g intercept that over-reads light items, so we drop it).<br>
+        We fit on <b>10 reference masses (21-1062 g)</b>, 5 reads each, centred on a spreader plate, scoring each
+        candidate by <b>mean absolute error</b> &nbsp;MAE = (1/n)&Sigma;|&#375; &minus; true|, n=10:<br>
+        &nbsp;&nbsp;&bull; raw (no fix): &nbsp;MAE <b>50.7 g (16.1%)</b><br>
+        &nbsp;&nbsp;&bull; two-parameter line &nbsp;<span style="color:#46c98d">&#375; = a + b&middot;raw</span>: &nbsp;a = <b>+2.846 g</b>, b = <b>1.1728</b> &rarr; MAE <b>4.9 g</b><br>
+        &nbsp;&nbsp;&bull; through-origin &nbsp;<span style="color:#46c98d">&#375; = k&middot;raw</span>: &nbsp;k = &Sigma;(raw&middot;true)/&Sigma;(raw&sup2;) = 1&thinsp;775&thinsp;157 / 1&thinsp;506&thinsp;877 = <b>1.178</b> &rarr; MAE <b>5.1 g</b><br>
+        The two are tied on MAE, but the line's <b>+2.846 g intercept</b> over-reads light items (a load-cell span error
+        is multiplicative), so we ship the through-origin model &nbsp;<span style="color:#46c98d"><b>corrected_g = 1.178 &middot; raw</b></span>.<br>
         <b>Validation:</b> applying the unchanged <b>1.178</b> to <b>10 unseen objects</b> (phone, battery, glass, remote,
         cardboard, camera, toys) predicts them to <b>1.9 g mean error</b>, so it captures the scale's real span, not a
         water-specific fit; refitting on all 20 barely moves the slope (1.17804 → 1.17825).<br>
