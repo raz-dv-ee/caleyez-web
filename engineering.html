@@ -198,7 +198,7 @@ let FOODMETA={},COOKMULT={},selSubE='',selPrepE='raw',lastLabel=null;   // prep/
 const mk=async u=>ort.InferenceSession.create(await (await fetch(u)).arrayBuffer(),{executionProviders:['wasm']});
 function disposeT(...items){for(const it of items){if(!it)continue;
   if(typeof it.dispose==='function')it.dispose(); else for(const k in it){it[k]&&it[k].dispose&&it[k].dispose();}}}
-function arbiterP(f){let m=ARB.base;for(const t of ARB.trees){let n=t["0"];while(n.length>1)n=t[f[n[0]]<n[1]?n[2]:n[3]];m+=n[0];}return 1/(1+Math.exp(-m));}
+function arbiterP(f){let m=ARB.base;for(const t of ARB.trees){let n=t["0"];while(n.length>1)n=t[Math.fround(f[n[0]])<n[1]?n[2]:n[3]];m+=n[0];}return 1/(1+Math.exp(-m));}// fround: float32 compare like XGBoost -> bit-exact routing
 const pretty=s=>s.replace(/_/g,' ');
 
 async function boot(){
