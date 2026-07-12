@@ -288,7 +288,7 @@ async function applyGemini(){
   last.chosen={label:food, conf:[1,0,0,0,0], top5:[[food,1]]};
   last.abstain=false; last.confident=true; last.usedGemini=true;
   animateKcal=true; sfxReady(); buzz(15);
-  selSub=''; const _pm=FOODMETA[food]; selPrep=(_pm&&_pm.prep&&_pm.prep.length)?(_pm.prep.includes('raw')?'raw':_pm.prep[0]):'raw';
+  const _pm=FOODMETA[food]; selSub=(_pm&&_pm.default_sub)?_pm.default_sub:''; selPrep=(_pm&&_pm.prep&&_pm.prep.length)?(_pm.prep.includes('raw')?'raw':_pm.prep[0]):'raw';
   render(last); await ensureNutrition(food); render(last);
   $("status").textContent='Gemini';
 }
@@ -443,7 +443,7 @@ async function analyze(){
   const abstain=routeI && chosen.label==='background';
   const confident=chosen.conf[0]>=gate && !bothUnsure && !arbUnsure && !abstain;
   last={chosen, routeI, pIsr, confident, abstain, infMs};
-  selSub=''; const _pm=FOODMETA[chosen.label];                          // reset prep/sub for the new food
+  const _pm=FOODMETA[chosen.label]; selSub=(_pm&&_pm.default_sub)?_pm.default_sub:'';   // reset prep/sub for the new food
   selPrep=(_pm&&_pm.prep&&_pm.prep.length)?(_pm.prep.includes('raw')?'raw':_pm.prep[0]):'raw';
   $("stage").classList.remove('scanning');
   $("analyze").textContent='📷 New photo';
@@ -495,7 +495,7 @@ function controlsHTML(label){
   const L='font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px';
   let h='';
   const subs=m.subs?Object.keys(m.subs):[];
-  if(subs.length) h+=`<span style="${L}">cut/type</span><select style="${S}" onchange="onSub(this.value)">
+  if(subs.length) h+=`<span style="${L}">${m.sub_label||'cut/type'}</span><select style="${S}" onchange="onSub(this.value)">
     <option value="">typical</option>`+subs.map(k=>`<option ${k===selSub?'selected':''}>${k}</option>`).join('')+`</select>`;
   if(m.prep && m.prep.length) h+=`<span style="${L}">prep</span><select style="${S}" onchange="onPrep(this.value)">`+
     m.prep.map(k=>`<option value="${k}" ${k===selPrep?'selected':''}>${k.replace(/_/g,' ')}</option>`).join('')+`</select>`;

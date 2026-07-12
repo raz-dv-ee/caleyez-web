@@ -1,6 +1,8 @@
 {
   "_note": "per 100 g: kcal, protein g, carb g, fat g. Approximate reference values (USDA-style). Extend as needed.",
   "apple": {"kcal": 52, "pro": 0.3, "carb": 14, "fat": 0.2},
+  "almonds": {"kcal": 579, "pro": 21, "carb": 22, "fat": 50},
+  "bell_pepper": {"kcal": 31, "pro": 1.0, "carb": 6.0, "fat": 0.3},
   "banana": {"kcal": 89, "pro": 1.1, "carb": 23, "fat": 0.3},
   "grapes": {"kcal": 69, "pro": 0.7, "carb": 18, "fat": 0.2},
   "orange": {"kcal": 47, "pro": 0.9, "carb": 12, "fat": 0.1},

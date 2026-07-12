@@ -321,7 +321,7 @@ function renderAll(r){
     <div style="margin-top:10px">
       ${gate(r.chosen.conf[0]>=r.gate,'confidence gate',`${(r.chosen.conf[0]).toFixed(2)} ≥ ${r.gate}`)}
       ${gate(!r.bothUnsure,'both-experts-unsure',`g${r.g.conf[0].toFixed(2)} / i${r.i.conf[0].toFixed(2)} vs ${BOTH_UNSURE}`)}
-      ${gate(!r.arbUnsure,'arbiter decisive',`|P−0.5|=${Math.abs(r.pIsr-0.5).toFixed(2)} ≥ ${ARB_BAND}`)}
+      ${gate(!r.arbUnsure,'arbiter decisive',`|P-0.5|=${Math.abs(r.pIsr-0.5).toFixed(2)} ≥ ${ARB_BAND}`)}
       ${gate(!r.abstain,'not background',r.abstain?'Israeli said background':'ok')}
     </div>
     <div class="stat"><span>final verdict <b class="${r.confident?'ok':'no'}">${r.confident?'CONFIDENT':'LOW-CONF → Gemini fallback'}</b></span></div>
@@ -393,7 +393,9 @@ async function renderNutrition(){
 
   // smart-filter candidate table (only when we hit USDA in debug mode)
   if(lastUSDA && lastUSDA._candidates){
-    body+=`<div class="muted" style="margin-top:6px">USDA smart filter - top candidates ranked (score = primary-name + token overlap; junk tokens rejected):</div>
+    body+=`<div class="muted" style="margin-top:6px"><b>USDA smart filter.</b> USDA returns up to 10 candidates for the query; the filter picks one in two steps.
+      <b>1) Reject</b> any candidate carrying a processed-product qualifier the query never asked for (syrup, jam, flavored, imitation, substitute...) - these are struck out, shown with the offending word.
+      <b>2) Score</b> the survivors: a query word matching the candidate's <b>primary name</b> (the part before the first comma) is worth far more (×100) than matching a trailing qualifier (×15), with an extra reward when the food <i>is</i> that name (so "Apples, raw" beats "Rose-apples"), <b>+8</b> for the plain/raw form, minus a small penalty per extra word and <b>-40</b> for ALL-CAPS branded/restaurant rows. Cooking words (grilled, fried, raw...) never drive the match - the prep multiplier handles those. Highest score is chosen; that row's per-100 g numbers are what the app uses:</div>
       <table style="margin-top:4px"><thead><tr><th>candidate</th><th style="text-align:right">score</th><th>verdict</th></tr></thead><tbody>`+
       lastUSDA._candidates.map((c,idx)=>{
         const chosen=c.kept&&idx===lastUSDA._candidates.findIndex(x=>x.kept);
@@ -423,7 +425,8 @@ fat  = base ${base.fat.toFixed(1)} + ${cm.added_fat_g} g absorbed oil = ${fat.to
 
 // 6 · BLE weight decode - full SWAN packet (protocol reverse-engineered; see main-repo index.html "BLE Scale").
 // Layout: [0]header AC [1]len 05 [2]unit [3]status/high-bits(256 carry) [4]low [5]high [6]magic CE [7]checksum
-let wbuf=[], bleLive=false;
+let wbuf=[], bleLive=false, bleDev=null, bleCh=null, bleLastRx=0, bleReconnecting=false, bleWatch=null;
+const BLE_STALE_MS=4000;   // no packet for this long -> the SWAN notify stream went quiet; re-arm it
 const hex=b=>b.toString(16).toUpperCase().padStart(2,'0');
 const ROLES=['header','len','unit','status / hi-bits','low byte','high byte','magic','checksum'];
 function renderBle(pkt,live){
@@ -462,24 +465,50 @@ function renderBle(pkt,live){
       the load cell emits while settling.</div>`;
   const b=$("scaleBtn"); if(b) b.onclick=connectScale;
 }
+// One SWAN packet per weight CHANGE. Cheap scales also let the notify stream go silently quiet when idle
+// (link stays "connected"), so without a watchdog a removed-then-replaced object never updates - the exact
+// freeze seen in the console. Named handler so re-adding it is a no-op (dedup), never a stacked listener.
+function onBlePacket(e){
+  const d=e.target.value; if(d.byteLength<8) return;
+  const pkt=[0,1,2,3,4,5,6,7].map(i=>d.getUint8(i));
+  if(pkt[0]!==0xAC) return;                                  // ignore non-weight frames -> hold last reading
+  bleLastRx=Date.now(); bleLive=true; renderBle(pkt,true);   // (section 6 shows checksum PASS/FAIL as info)
+}
+async function findFfb2(gatt){
+  for(const svc of await gatt.getPrimaryServices()){
+    for(const c of await svc.getCharacteristics()){ if(c.uuid.includes('ffb2')) return c; } }
+  return null;
+}
+async function bleReconnect(){                               // watchdog: re-arm a quiet link, or reconnect a dropped one
+  if(!bleDev || bleReconnecting) return;
+  bleReconnecting=true;
+  try{
+    if(bleDev.gatt.connected && bleCh){
+      try{ await bleCh.stopNotifications(); }catch(_){}
+      await bleCh.startNotifications();                      // re-arm the notify stream on the live link
+    }else{
+      await bleDev.gatt.connect();                           // link dropped: full reconnect (paired device, no gesture)
+      const ch=await findFfb2(bleDev.gatt);
+      if(ch){ bleCh=ch; bleCh.addEventListener('characteristicvaluechanged',onBlePacket); await bleCh.startNotifications(); }
+    }
+    bleLastRx=Date.now();                                    // grant a fresh window before the next check
+  }catch(_){/* transient; retry on the next tick */}
+  bleReconnecting=false;
+}
 async function connectScale(){
   if(!navigator.bluetooth){ alert("This browser has no Web Bluetooth (use Chrome on Android)."); return; }
   try{
     $("scaleBtn").textContent='⚖ scanning…';
-    const dev=await navigator.bluetooth.requestDevice({filters:[{namePrefix:'SWAN'}],
+    bleDev=await navigator.bluetooth.requestDevice({filters:[{namePrefix:'SWAN'}],
       optionalServices:[0xffb0,0xfff0,0xffe0,0x181d,
         '0000ffb0-0000-1000-8000-00805f9b34fb','0000fff0-0000-1000-8000-00805f9b34fb']});
-    const gatt=await dev.gatt.connect(); let ch=null;
-    for(const svc of await gatt.getPrimaryServices()){
-      for(const c of await svc.getCharacteristics()){ if(c.uuid.includes('ffb2')){ ch=c; break; } } if(ch) break; }
+    await bleDev.gatt.connect();
+    const ch=await findFfb2(bleDev.gatt);
     if(!ch) throw new Error("weight characteristic (ffb2) not found");
-    await ch.startNotifications();
-    ch.addEventListener('characteristicvaluechanged',e=>{
-      const d=e.target.value; if(d.byteLength<8) return;
-      const pkt=[0,1,2,3,4,5,6,7].map(i=>d.getUint8(i));
-      if(pkt[0]!==0xAC) return;                              // ignore non-weight frames -> hold last reading
-      renderBle(pkt,true); bleLive=true;});                  // (section 6 shows checksum PASS/FAIL as info)
-    dev.addEventListener('gattserverdisconnected',()=>{bleLive=false;});
+    bleCh=ch; bleCh.addEventListener('characteristicvaluechanged',onBlePacket); await bleCh.startNotifications();
+    bleLastRx=Date.now();
+    bleDev.addEventListener('gattserverdisconnected',()=>{bleLive=false;});   // watchdog re-establishes it
+    if(!bleWatch) bleWatch=setInterval(()=>{ if(bleDev && Date.now()-bleLastRx>BLE_STALE_MS) bleReconnect(); }, 1000);
   }catch(e){ if(e.name!=='NotFoundError') alert('scale: '+e.message); renderBle(EXAMPLE_PKT,false); }
 }
 // worked example (from the reverse-engineering doc): AC 05 00 02 14 00 CE E4

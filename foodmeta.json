@@ -21,7 +21,14 @@
       "grilled",
       "fried"
     ],
-    "subs": {}
+    "sub_label": "color",
+    "default_sub": "red",
+    "subs": {
+      "red": { "kcal": 31, "pro": 1.0, "carb": 6.0, "fat": 0.3 },
+      "green": { "kcal": 20, "pro": 0.9, "carb": 4.6, "fat": 0.2 },
+      "yellow": { "kcal": 27, "pro": 1.0, "carb": 6.3, "fat": 0.2 },
+      "orange": { "kcal": 26, "pro": 1.0, "carb": 6.0, "fat": 0.3 }
+    }
   },
   "cabbage": {
     "prep": [
