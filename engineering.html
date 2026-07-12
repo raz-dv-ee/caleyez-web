@@ -124,7 +124,20 @@
       <div class="card" id="cardArb"></div></div>
 
     <div><h2><span class="n">5</span> Nutrition lookup</h2>
-      <div class="card" id="cardNut"></div></div>
+      <div class="card" id="cardNut"></div>
+      <div class="card" style="margin-top:8px">
+        <div class="muted"><b>Worked example - how a USDA query is chosen.</b> For a food not in the local DB, the app sends the label to the Worker, which queries USDA and runs the smart filter (reject, then score, then pick the top). The request:</div>
+        <pre>GET /search?query=<b>apple</b>&amp;dataType=Foundation,SR Legacy&amp;pageSize=10</pre>
+        <div class="muted" style="margin-top:6px">USDA returns up to 10 rows; the filter scores each - a query word in the <b>primary name</b> (before the first comma) is worth ×100 vs ×15 for a trailing qualifier, +8 for "raw", with penalties for length and ALL-CAPS - and rejects processed-product rows (juice, dried, flavored...). Real result:</div>
+        <table style="margin-top:4px"><thead><tr><th>candidate USDA returned</th><th style="text-align:right">score</th><th>verdict</th></tr></thead><tbody>
+          <tr><td style="color:var(--lgreen)">Apples, raw, without skin</td><td class="v">141</td><td><span class="ok">✓ chosen → 48 kcal</span></td></tr>
+          <tr><td>Apples, gala, with skin, raw</td><td class="v">140.5</td><td>kept</td></tr>
+          <tr><td>Croissants, apple</td><td class="v">14</td><td>kept ("apple" only a qualifier)</td></tr>
+          <tr><td style="color:var(--mut)">Babyfood, juice, apple</td><td class="v">-</td><td><span class="no">✗ 'juice'</span></td></tr>
+          <tr><td style="color:var(--mut)">Apples, dried, sulfured</td><td class="v">-</td><td><span class="no">✗ 'dried'</span></td></tr>
+        </tbody></table>
+        <div class="note"><b>Why some foods are pinned in the local DB instead.</b> USDA's own naming can defeat the primary-name rule. Query <b>almonds</b> and USDA files the nut as <i>"Nuts, almonds, whole, raw"</i> - so the primary name is "Nuts" and "almonds" is only a qualifier (score <b>21</b>), while <i>"Almond butter, creamy"</i> has "almond" as its <i>primary</i> name (score <b>123.5</b>) and "butter" is not a junk word - so the filter picks <b>almond butter → 645 kcal</b>. Rather than special-case every such food, almonds and the bell-pepper colors are pinned in the local DB with correct values, so they resolve deterministically and never reach this search.</div>
+      </div></div>
   </div>
 
   <div><h2><span class="n">6</span> Weight decode · BLE scale</h2>
