@@ -199,7 +199,7 @@
 const $=id=>document.getElementById(id);
 ort.env.wasm.wasmPaths="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/";ort.env.wasm.numThreads=1;
 const MODEL_BASE="https://raz-dv-ee.github.io/CalEyeZ/webmodels/";
-const G_SZ=320,I_SZ=224,ROI_FRAC=0.60,GATE_G=0.55,GATE_I=0.60,BOTH_UNSURE=0.50,ARB_BAND=0.15;
+const G_SZ=320,I_SZ=224,ROI_FRAC=0.60,GATE_G=0.55,GATE_I=0.60,BOTH_UNSURE=0.50,ARB_BAND=0.15,ARB_TRUST=0.75;
 const USDA_PROXY="https://caleyez-usda.caleyez.workers.dev";  // live Cloudflare Worker (USDA key is a Worker secret)
 const FEATS=['g_conf1','g_conf2','g_conf3','g_conf4','g_conf5','g_entropy','g_margin',
   'i_conf1','i_conf2','i_conf3','i_conf4','i_conf5','i_entropy','i_margin','i_p_background',
@@ -266,7 +266,7 @@ async function analyze(){
     i.conf[0],i.conf[1],i.conf[2],i.conf[3],i.conf[4],i.entropy,i.margin,i.pbg,
     g.conf[0]-i.conf[0],g.conf[0]/(i.conf[0]+1e-6),i.entropy-g.entropy,g.margin-i.margin,((g.conf[0]<0.5)&&(i.conf[0]<0.5))?1:0];
   const pIsr=arbiterP(f), routeI=pIsr>=0.5, chosen=routeI?i:g, gate=routeI?GATE_I:GATE_G;
-  const bothUnsure=g.conf[0]<BOTH_UNSURE&&i.conf[0]<BOTH_UNSURE, arbUnsure=Math.abs(pIsr-0.5)<ARB_BAND,
+  const bothUnsure=g.conf[0]<BOTH_UNSURE&&i.conf[0]<BOTH_UNSURE, arbUnsure=Math.abs(pIsr-0.5)<ARB_BAND&&chosen.conf[0]<ARB_TRUST,
         abstain=routeI&&chosen.label==='background', confident=chosen.conf[0]>=gate&&!bothUnsure&&!arbUnsure&&!abstain;
   renderAll({cg,ci,g,i,f,pIsr,routeI,chosen,gate,bothUnsure,arbUnsure,abstain,confident,geom,prep});
   $("analyze").textContent='Capture & trace';
@@ -334,7 +334,7 @@ function renderAll(r){
     <div style="margin-top:10px">
       ${gate(r.chosen.conf[0]>=r.gate,'confidence gate',`${(r.chosen.conf[0]).toFixed(2)} ≥ ${r.gate}`)}
       ${gate(!r.bothUnsure,'both-experts-unsure',`g${r.g.conf[0].toFixed(2)} / i${r.i.conf[0].toFixed(2)} vs ${BOTH_UNSURE}`)}
-      ${gate(!r.arbUnsure,'arbiter decisive',`|P-0.5|=${Math.abs(r.pIsr-0.5).toFixed(2)} ≥ ${ARB_BAND}`)}
+      ${gate(!r.arbUnsure,'arbiter decisive', (Math.abs(r.pIsr-0.5)<ARB_BAND && r.chosen.conf[0]>=ARB_TRUST) ? `close routing (|P-0.5|=${Math.abs(r.pIsr-0.5).toFixed(2)}) but expert ${r.chosen.conf[0].toFixed(2)} ≥ ${ARB_TRUST} → trusted` : `|P-0.5|=${Math.abs(r.pIsr-0.5).toFixed(2)} ≥ ${ARB_BAND}`)}
       ${gate(!r.abstain,'not background',r.abstain?'Israeli said background':'ok')}
     </div>
     <div class="stat"><span>final verdict <b class="${r.confident?'ok':'no'}">${r.confident?'CONFIDENT':'LOW-CONF → Gemini fallback'}</b></span></div>
