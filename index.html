@@ -228,7 +228,7 @@ const G_SZ=320, I_SZ=224, ROI_FRAC=0.60;
 // number than the scale's LCD. See engineering.html "Weight calibration".
 const CAL_A=0.0, CAL_B=1.17804;
 const calibrate=raw=>Math.max(0, Math.round(CAL_A + CAL_B*raw));
-const GATE_G=0.55, GATE_I=0.60, BOTH_UNSURE=0.50, ARB_BAND=0.15, ARB_TRUST=0.75;
+const GATE_G=0.55, GATE_I=0.60, BOTH_UNSURE=0.50, ARB_BAND=0.15, ARB_TRUST=0.75, ARB_ISR_TRUST=0.90;
 // USDA lookup goes through YOUR proxy (Cloudflare Worker) so the key never ships in this public repo.
 // Set this to your Worker URL, e.g. "https://caleyez-usda.<you>.workers.dev". Empty = local DB only.
 const USDA_PROXY="https://caleyez-usda.caleyez.workers.dev";
@@ -437,7 +437,10 @@ async function analyze(){
            ((g.conf[0]<0.5)&&(i.conf[0]<0.5))?1:0];
   const pIsr=arbiterP(f);
 
-  const routeI=pIsr>=0.5, chosen=routeI?i:g, gate=routeI?GATE_I:GATE_G;
+  // A very-confident Israeli specialist (>=ARB_ISR_TRUST on one of its 13 dishes, and more sure than the Global
+  // model) overrides the arbiter: jachnun/malawach etc. read as global pastries (e.g. chocolate_cake) to Global.
+  const isrTrust = i.conf[0]>=ARB_ISR_TRUST && i.label!=='background' && i.conf[0]>g.conf[0];
+  const routeI = isrTrust || pIsr>=0.5, chosen=routeI?i:g, gate=routeI?GATE_I:GATE_G;
   const bothUnsure=g.conf[0]<BOTH_UNSURE && i.conf[0]<BOTH_UNSURE;
   const arbUnsure=Math.abs(pIsr-0.5)<ARB_BAND && chosen.conf[0]<ARB_TRUST;  // a clearly-confident expert (>=ARB_TRUST) overrides a close routing call
   const abstain=routeI && chosen.label==='background';
