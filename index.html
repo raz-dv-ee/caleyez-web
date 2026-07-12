@@ -563,31 +563,53 @@ $("analyze").onclick=()=>{ if(frozen) retake();
 $("grams").oninput=()=>{ if(last) render(last); };   // recompute nutrition only, no re-inference
 
 // ---- BLE scale (SWAN): same decode as scripts/ble/scale_reader.py ----
-let wbuf=[];
+let wbuf=[], bleDev=null, bleCh=null, bleLastRx=0, bleReconnecting=false, bleWatch=null;
+const BLE_STALE_MS=4000;   // no packet for this long -> the SWAN notify stream went quiet; re-arm it
+async function findFfb2(gatt){
+  for(const s of await gatt.getPrimaryServices()){
+    for(const c of await s.getCharacteristics()){ if(c.uuid.includes('ffb2')) return c; } }
+  return null;
+}
+// Cheap scales let the notify stream go silently quiet when idle (link stays "connected"), so without this a
+// removed-then-replaced object would never update. Re-arm the stream, or reconnect if the link actually dropped.
+async function bleReconnect(){
+  if(!bleDev || bleReconnecting) return;
+  bleReconnecting=true;
+  try{
+    if(bleDev.gatt.connected && bleCh){
+      try{ await bleCh.stopNotifications(); }catch(_){}
+      await bleCh.startNotifications();                        // re-arm the notify stream on the live link
+    }else{
+      await bleDev.gatt.connect();                             // link dropped: full reconnect (paired, no gesture)
+      const ch=await findFfb2(bleDev.gatt);
+      if(ch){ bleCh=ch; bleCh.addEventListener('characteristicvaluechanged', onWeight); await bleCh.startNotifications(); }
+    }
+    bleLastRx=Date.now(); $("scaleBtn").textContent='⚖ scale ✓';
+  }catch(_){/* transient; retry on the next tick */}
+  bleReconnecting=false;
+}
 async function connectScale(){
   if(!navigator.bluetooth){ alert("This browser has no Web Bluetooth (use Chrome on Android)."); return; }
   try{
     $("scaleBtn").textContent='⚖ scanning…';
-    const dev=await navigator.bluetooth.requestDevice({
+    bleDev=await navigator.bluetooth.requestDevice({
       filters:[{namePrefix:'SWAN'}],
       optionalServices:[0xffb0,0xfff0,0xffe0,0x181d,
         '0000ffb0-0000-1000-8000-00805f9b34fb','0000fff0-0000-1000-8000-00805f9b34fb']});
-    const gatt=await dev.gatt.connect();
-    let ch=null;
-    for(const s of await gatt.getPrimaryServices()){
-      for(const c of await s.getCharacteristics()){ if(c.uuid.includes('ffb2')){ ch=c; break; } }
-      if(ch) break;
-    }
+    await bleDev.gatt.connect();
+    const ch=await findFfb2(bleDev.gatt);
     if(!ch) throw new Error("weight characteristic (ffb2) not found - tell me the scale's service UUID");
-    await ch.startNotifications();
-    ch.addEventListener('characteristicvaluechanged', onWeight);
-    dev.addEventListener('gattserverdisconnected', ()=>{$("scaleBtn").textContent='⚖ reconnect';});
+    bleCh=ch; bleCh.addEventListener('characteristicvaluechanged', onWeight); await bleCh.startNotifications();
+    bleLastRx=Date.now();
+    bleDev.addEventListener('gattserverdisconnected', ()=>{$("scaleBtn").textContent='⚖ reconnecting…';});  // watchdog re-establishes it
+    if(!bleWatch) bleWatch=setInterval(()=>{ if(bleDev && Date.now()-bleLastRx>BLE_STALE_MS) bleReconnect(); }, 1000);
     $("scaleBtn").textContent='⚖ scale ✓';
   }catch(e){ $("scaleBtn").textContent='⚖ connect scale'; if(e.name!=='NotFoundError') alert('scale: '+e.message); }
 }
 function onWeight(e){
   const d=e.target.value; if(d.byteLength<8) return;
   if(d.getUint8(0)!==0xAC) return;   // only weight frames (header AC); ignore status/keepalive frames that decode to junk/0
+  bleLastRx=Date.now();              // fresh packet -> reset the staleness watchdog
   const low=d.getUint8(4), high=d.getUint8(5)|d.getUint8(3);   // do NOT mask bit0 (drops 256 g)
   wbuf.push(low+high*256); if(wbuf.length>5) wbuf.shift();
   const s=[...wbuf].sort((a,b)=>a-b); const med=s[s.length>>1]; // median rejects flicker/overshoot
