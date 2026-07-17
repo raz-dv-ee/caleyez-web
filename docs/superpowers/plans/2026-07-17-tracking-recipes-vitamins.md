@@ -605,7 +605,7 @@ Add to `lib/tracking.js` and to the returned object:
   // A user recipe is just another "sub". Recipes win on a name clash.
   function mergeSubs(meta, recipesForFood) {
     var base = (meta && meta.subs) ? meta.subs : {};
-    var out = {};
+    var out = Object.create(null); // null-prototype: recipe names come from JSON.parse, where "__proto__" is a real key
     Object.keys(base).forEach(function (k) { out[k] = base[k]; });
     if (recipesForFood) Object.keys(recipesForFood).forEach(function (k) { out[k] = recipesForFood[k]; });
     return out;
