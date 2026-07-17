@@ -797,8 +797,9 @@ $("profBtn").onclick=()=>{
     $("pfW").value=PROFILE.weightKg||''; $("pfAct").value=PROFILE.activity||1.55; }
 };
 $("pfSave").onclick=()=>{
-  PROFILE={name:($("pfName").value||'').trim(), sex:$("pfSex").value, age:+$("pfAge").value||0,
-    heightCm:+$("pfH").value||0, weightKg:+$("pfW").value||0, activity:+$("pfAct").value||1.55};
+  const nn=v=>Math.max(0,+v||0); // clamp so a stray minus cannot produce a negative BMI/TDEE
+  PROFILE={name:($("pfName").value||'').trim(), sex:$("pfSex").value, age:nn($("pfAge").value),
+    heightCm:nn($("pfH").value), weightKg:nn($("pfW").value), activity:+$("pfAct").value||1.55};
   saveProfile(PROFILE); $("profForm").style.display='none'; renderGreeting(); renderHistory();
 };
 renderGreeting();
