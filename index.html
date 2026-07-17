@@ -227,6 +227,8 @@
 <script src="lib/tracking.js"></script>
 <script>
 const $=id=>document.getElementById(id);
+// Escape user-controlled strings (recipe names, imported log rows) before they go into innerHTML.
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 ort.env.wasm.wasmPaths="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/";
 ort.env.wasm.numThreads=1;
 const MODEL_BASE="https://raz-dv-ee.github.io/CalEyeZ/webmodels/";
@@ -510,10 +512,10 @@ function controlsHTML(label){
   const L='font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px';
   let h='';
   const subs=Object.keys(allSubs);
-  if(subs.length) h+=`<span style="${L}">${m.sub_label||'cut/type'}</span><select style="${S}" onchange="onSub(this.value)">
-    <option value="">typical</option>`+subs.map(k=>`<option ${k===selSub?'selected':''}>${k}</option>`).join('')+`</select>`;
+  if(subs.length) h+=`<span style="${L}">${esc(m.sub_label||'cut/type')}</span><select style="${S}" onchange="onSub(this.value)">
+    <option value="">typical</option>`+subs.map(k=>`<option value="${esc(k)}" ${k===selSub?'selected':''}>${esc(k)}</option>`).join('')+`</select>`;
   if(m.prep && m.prep.length) h+=`<span style="${L}">prep</span><select style="${S}" onchange="onPrep(this.value)">`+
-    m.prep.map(k=>`<option value="${k}" ${k===selPrep?'selected':''}>${k.replace(/_/g,' ')}</option>`).join('')+`</select>`;
+    m.prep.map(k=>`<option value="${esc(k)}" ${k===selPrep?'selected':''}>${esc(k).replace(/_/g,' ')}</option>`).join('')+`</select>`;
   return h?`<div style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin:8px 0">${h}</div>`:'';
 }
 function onSub(v){ selSub=v; if(last) render(last); }
@@ -677,7 +679,7 @@ function renderHistory(){
   const top=CZTrack.mostEaten(rows,5);
   $("histTop").innerHTML = top.length
     ? '<div class="muted" style="margin-bottom:4px">Most eaten</div>'+top.map(m=>
-        `<div class="logrow"><div class="lh"><span class="lf">${m.food.replace(/_/g,' ')}
+        `<div class="logrow"><div class="lh"><span class="lf">${esc(m.food).replace(/_/g,' ')}
          <span class="lsub">x${m.count}</span></span><span class="lk">${Math.round(m.kcal)} kcal</span></div></div>`).join('')
     : '';
   const title={today:'Today',week:'Last 7 days',month:'Last 30 days'}[PERIOD];
@@ -700,7 +702,7 @@ function renderHistory(){
         <span><i style="background:var(--amber)"></i>${r.carb}g carbs</span>
         <span><i style="background:var(--accent)"></i>${r.fat}g fat</span></div>`:'';
     return `<div class="logrow"><div class="lh">
-        <span class="lf">${r.food.replace(/_/g,' ')} <span class="lsub">${r.sub?r.sub+' · ':''}${r.method?r.method.replace(/_/g,' ')+' · ':''}${r.grams}g · ${tm}</span></span>
+        <span class="lf">${esc(r.food).replace(/_/g,' ')} <span class="lsub">${r.sub?esc(r.sub)+' · ':''}${r.method?esc(r.method).replace(/_/g,' ')+' · ':''}${r.grams}g · ${tm}</span></span>
         <span class="lk">${r.kcal!=null?r.kcal+' kcal':'-'}</span></div>${macros}</div>`;
   }).join('') || '<span class="chip">no entries in this period</span>';
 }
