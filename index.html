@@ -204,6 +204,24 @@
     </div>
   </div>
 
+  <div class="result show" id="greetCard" style="display:none">
+    <div class="lh"><span class="lf" id="greetText">Hello</span>
+      <button class="chip" id="profBtn">profile</button></div>
+    <div id="profForm" style="display:none;flex-wrap:wrap;gap:6px;margin-top:8px">
+      <input id="pfName" placeholder="name" style="flex:1;min-width:110px">
+      <select id="pfSex" style="width:90px"><option value="m">male</option><option value="f">female</option></select>
+      <input id="pfAge" type="number" placeholder="age" style="width:70px">
+      <input id="pfH" type="number" placeholder="height cm" style="width:95px">
+      <input id="pfW" type="number" placeholder="weight kg" style="width:95px">
+      <select id="pfAct" style="width:130px">
+        <option value="1.2">sedentary</option><option value="1.375">light</option>
+        <option value="1.55" selected>moderate</option><option value="1.725">very active</option>
+        <option value="1.9">extra active</option>
+      </select>
+      <button class="btn" id="pfSave" style="width:auto;padding:8px 14px">Save</button>
+    </div>
+  </div>
+
   <div class="result" id="histCard">
     <div style="display:flex;align-items:baseline;justify-content:space-between">
       <b id="histTitle">Today</b>
@@ -665,6 +683,10 @@ const RKEY='caleyez_recipes';
 const loadRecipes=()=>{try{return JSON.parse(localStorage.getItem(RKEY)||'{}');}catch(e){return {};}};
 const saveRecipes=o=>localStorage.setItem(RKEY,JSON.stringify(o));
 let RECIPES=loadRecipes();
+const PKEY='caleyez_profile';
+const loadProfile=()=>{try{return JSON.parse(localStorage.getItem(PKEY)||'null');}catch(e){return null;}};
+const saveProfile=o=>localStorage.setItem(PKEY,JSON.stringify(o));
+let PROFILE=loadProfile();
 let PERIOD='today';                                     // 'today' | 'week' | 'month'
 function setPeriod(p){ PERIOD=p; renderHistory(); }
 const loadLog=()=>{try{return JSON.parse(localStorage.getItem(LKEY)||'[]');}catch(e){return [];}};
@@ -716,6 +738,12 @@ function renderHistory(){
   const title={today:'Today',week:'Last 7 days',month:'Last 30 days'}[PERIOD];
   $("histTitle").textContent=title;
   $("histTotal").textContent='🔥 '+t.kcal+' kcal';
+  const t2=CZTrack.tdee(PROFILE||{});
+  if(t2){
+    const days={today:1,week:7,month:30}[PERIOD];
+    const burned=t2*days, net=t.kcal-burned;
+    $("histTotal").textContent=`🔥 ${t.kcal} kcal · burned ~${burned} · net ${net>0?'+':''}${net}`;
+  }
   ['TODAY','WEEK','MONTH'].forEach(k=>{
     const b=$("p"+k); if(b) b.style.opacity = (k.toLowerCase()===PERIOD)?'1':'.45';
   });
@@ -754,6 +782,26 @@ $("rcSave").onclick=()=>{
   ['rcName','rcKcal','rcPro','rcCarb','rcFat'].forEach(id=>$(id).value=''); // reset so stale values cannot carry to the next food
   render(last);
 };
+function renderGreeting(){
+  const c=$("greetCard");
+  c.style.display='';
+  if(!PROFILE || !PROFILE.name){ $("greetText").textContent='Hello - set up your profile'; return; }
+  const b=CZTrack.bmi(PROFILE.weightKg, PROFILE.heightCm), t=CZTrack.tdee(PROFILE);
+  $("greetText").innerHTML=`Hello <b>${esc(PROFILE.name)}</b>`+
+    (b?` <span class="lsub">BMI ${b}${t?` · burns ~${t} kcal/day`:''}</span>`:'');
+}
+$("profBtn").onclick=()=>{
+  const f=$("profForm"); f.style.display = f.style.display==='none' ? 'flex' : 'none';
+  if(PROFILE){ $("pfName").value=PROFILE.name||''; $("pfSex").value=PROFILE.sex||'m';
+    $("pfAge").value=PROFILE.age||''; $("pfH").value=PROFILE.heightCm||'';
+    $("pfW").value=PROFILE.weightKg||''; $("pfAct").value=PROFILE.activity||1.55; }
+};
+$("pfSave").onclick=()=>{
+  PROFILE={name:($("pfName").value||'').trim(), sex:$("pfSex").value, age:+$("pfAge").value||0,
+    heightCm:+$("pfH").value||0, weightKg:+$("pfW").value||0, activity:+$("pfAct").value||1.55};
+  saveProfile(PROFILE); $("profForm").style.display='none'; renderGreeting(); renderHistory();
+};
+renderGreeting();
 $("logBtn").onclick=logMeal;
 $("askGemini").onclick=()=>applyGemini().catch(e=>{$("status").textContent='Gemini err';});
 updSound();
