@@ -723,11 +723,13 @@ $("rcSave").onclick=()=>{
   if(!last || last.abstain) return;
   const label=last.chosen.label, name=($("rcName").value||'').trim();
   const kcal=+$("rcKcal").value;
-  if(!name || !kcal){ alert('Give it a name and a kcal value.'); return; }
+  if(!name || !kcal || kcal<0){ alert('Give it a name and a kcal value (0 or more).'); return; }
+  const nn=v=>Math.max(0,+v||0); // clamp macros to non-negative so a stray minus cannot deflate totals
   RECIPES[label]=RECIPES[label]||{};
-  RECIPES[label][name]={kcal, pro:+$("rcPro").value||0, carb:+$("rcCarb").value||0, fat:+$("rcFat").value||0};
+  RECIPES[label][name]={kcal, pro:nn($("rcPro").value), carb:nn($("rcCarb").value), fat:nn($("rcFat").value)};
   saveRecipes(RECIPES);
   selSub=name; $("recipeForm").style.display='none';
+  ['rcName','rcKcal','rcPro','rcCarb','rcFat'].forEach(id=>$(id).value=''); // reset so stale values cannot carry to the next food
   render(last);
 };
 $("logBtn").onclick=logMeal;
