@@ -493,7 +493,8 @@ let last=null;
 // added-oil grams; protein/carb grams are ~preserved (conservative). Returns {kcal,pro,carb,fat}.
 function effNut(label){
   const m=FOODMETA[label]||{};
-  const base=(selSub && m.subs && m.subs[selSub]) ? m.subs[selSub] : NUTR[label];
+  const allSubs=CZTrack.mergeSubs(m, RECIPES[label]);
+  const base=(selSub && allSubs[selSub]) ? allSubs[selSub] : NUTR[label];
   if(!base) return null;
   const o={kcal:base.kcal, pro:base.pro, carb:base.carb, fat:base.fat};
   const cm=COOKMULT[selPrep];
@@ -502,11 +503,13 @@ function effNut(label){
 }
 // Build the conditional sub-food + prep dropdowns for a label (empty string if neither applies).
 function controlsHTML(label){
-  const m=FOODMETA[label]; if(!m) return '';
+  const m=FOODMETA[label]||{};
+  const allSubs=CZTrack.mergeSubs(m, RECIPES[label]);
+  if(!Object.keys(allSubs).length && !(m.prep&&m.prep.length)) return '';
   const S='padding:7px 9px;border-radius:9px;background:var(--card,#182233);color:inherit;border:1px solid var(--line,#2a3446);font-size:13px';
   const L='font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px';
   let h='';
-  const subs=m.subs?Object.keys(m.subs):[];
+  const subs=Object.keys(allSubs);
   if(subs.length) h+=`<span style="${L}">${m.sub_label||'cut/type'}</span><select style="${S}" onchange="onSub(this.value)">
     <option value="">typical</option>`+subs.map(k=>`<option ${k===selSub?'selected':''}>${k}</option>`).join('')+`</select>`;
   if(m.prep && m.prep.length) h+=`<span style="${L}">prep</span><select style="${S}" onchange="onPrep(this.value)">`+
@@ -632,6 +635,10 @@ $("scaleBtn").onclick=connectScale;
 
 // ---- meal log (on-device, localStorage) ----
 const LKEY='caleyez_log';
+const RKEY='caleyez_recipes';
+const loadRecipes=()=>{try{return JSON.parse(localStorage.getItem(RKEY)||'{}');}catch(e){return {};}};
+const saveRecipes=o=>localStorage.setItem(RKEY,JSON.stringify(o));
+let RECIPES=loadRecipes();
 let PERIOD='today';                                     // 'today' | 'week' | 'month'
 function setPeriod(p){ PERIOD=p; renderHistory(); }
 const loadLog=()=>{try{return JSON.parse(localStorage.getItem(LKEY)||'[]');}catch(e){return [];}};
