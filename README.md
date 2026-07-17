@@ -100,3 +100,27 @@ weight = low + (high | carry) * 256      # do NOT mask bit 0 of the high byte
 
 Static site on GitHub Pages. Push to `main`; Pages serves it. Use `?v=N` to bust the CDN cache when
 testing a change.
+
+## Roadmap (approved, not yet implemented)
+
+Design spec: [`docs/superpowers/specs/2026-07-17-tracking-recipes-vitamins-design.md`](docs/superpowers/specs/2026-07-17-tracking-recipes-vitamins-design.md)
+
+Six front-end-only, on-device features (localStorage; no backend, no accounts):
+
+1. **History dashboard** - Today / Week / Month over the existing `caleyez_log` (chart, per-day breakdown,
+   most-eaten foods, averages).
+2. **Custom recipes** - save your own values for a food; they appear next to "typical" in the existing
+   sub-food dropdown when that food is recognised.
+3. **Vitamins and minerals** - the USDA Worker already receives them and discards all but six nutrient IDs;
+   extend the `NUTRIENT` map and harvest values for the locally-pinned foods.
+4. **CSV export / import** - a backup and escape hatch. A browser cannot use a CSV as its database.
+5. **Food-list discovery** - a searchable sheet of the 145 recognisable foods (the class lists are already
+   loaded at startup).
+6. **Profile, BMI and TDEE** - Mifflin-St Jeor arithmetic, computed locally, giving "eaten vs burned".
+
+### Storage caveats (worth knowing)
+
+`localStorage` survives closing the app, restarting the browser and rebooting the phone. It is cleared by
+"clear cookies and site data" (not by clearing plain cache), by private/incognito sessions, and - on iOS
+Safari - **automatically after 7 days without visiting the site**. Mitigations: Add to Home Screen,
+`navigator.storage.persist()`, and the CSV export as a manual backup.
