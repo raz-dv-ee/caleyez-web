@@ -158,3 +158,33 @@ test("bmi and bmr return null on an incomplete profile", () => {
   assert.strictEqual(T.bmr({ sex: "m", weightKg: 74 }), null);
   assert.strictEqual(T.tdee({}), null);
 });
+
+test("toCSV writes a header and one line per row", () => {
+  const csv = T.toCSV([{ ts: 1, food: "pizza", grams: 100, kcal: 200, pro: 1, carb: 2, fat: 3 }]);
+  const lines = csv.trim().split("\n");
+  assert.ok(lines[0].startsWith("ts,food,grams"));
+  assert.ok(lines[1].includes("pizza"));
+  assert.strictEqual(lines.length, 2);
+});
+
+test("toCSV quotes values containing commas", () => {
+  const csv = T.toCSV([{ ts: 1, food: "rice, fried", grams: 1, kcal: 1, pro: 0, carb: 0, fat: 0 }]);
+  assert.ok(csv.includes('"rice, fried"'));
+});
+
+test("fromCSV round-trips toCSV", () => {
+  const rows = [{ ts: 1, food: "pizza", grams: 100, kcal: 200, pro: 1, carb: 2, fat: 3 }];
+  const back = T.fromCSV(T.toCSV(rows));
+  assert.strictEqual(back.length, 1);
+  assert.strictEqual(back[0].food, "pizza");
+  assert.strictEqual(back[0].ts, 1);
+  assert.strictEqual(back[0].kcal, 200);
+});
+
+test("mergeRows dedupes by ts", () => {
+  const a = [{ ts: 1, food: "x" }, { ts: 2, food: "y" }];
+  const b = [{ ts: 2, food: "y" }, { ts: 3, food: "z" }];
+  const m = T.mergeRows(a, b);
+  assert.strictEqual(m.length, 3);
+  assert.deepStrictEqual(m.map((r) => r.ts), [1, 2, 3]);
+});
