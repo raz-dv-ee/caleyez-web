@@ -714,14 +714,40 @@ function logMeal(){
   setTimeout(()=>{$("logBtn").textContent='＋ Log meal';$("logBtn").classList.remove('pulse');},1200);
 }
 let histChart=null;
+// protein / carbs / fat stacked, colours matched to the log-row macro dots below.
+const MACRO_SET=[
+  {key:'pro',  label:'protein', color:'#58a6ff'},
+  {key:'carb', label:'carbs',   color:'#d29922'},
+  {key:'fat',  label:'fat',     color:'#46c98d'}
+];
 function renderChart(buckets){
   const el=$("histChart"); if(!el || typeof Chart==='undefined') return;
-  const data={labels:buckets.map(b=>b.label),
-    datasets:[{data:buckets.map(b=>Math.round(b.kcal)), backgroundColor:'#46c98d', borderRadius:4}]};
-  const opts={responsive:true, plugins:{legend:{display:false}},
-    scales:{x:{grid:{display:false},ticks:{color:'#8b949e',font:{size:10}}},
-            y:{beginAtZero:true,grid:{color:'#222b36'},ticks:{color:'#8b949e',font:{size:10}}}}};
-  if(histChart){ histChart.data=data; histChart.update(); return; }
+  const data={
+    labels:buckets.map(b=>b.label),
+    datasets:MACRO_SET.map(m=>({
+      label:m.label,
+      data:buckets.map(b=>+(b[m.key]||0).toFixed(1)),
+      backgroundColor:m.color, borderRadius:3, borderSkipped:false,
+      stack:'macros', maxBarThickness:36
+    }))
+  };
+  const opts={
+    responsive:true, animation:{duration:450},
+    plugins:{
+      legend:{display:true, position:'bottom',
+        labels:{color:'#c9d4e0', usePointStyle:true, pointStyle:'rectRounded',
+          boxWidth:9, boxHeight:9, padding:14, font:{size:11}}},
+      tooltip:{
+        callbacks:{footer:items=>'total '+Math.round(buckets[items[0].dataIndex].kcal)+' kcal'}
+      }
+    },
+    scales:{
+      x:{stacked:true, grid:{display:false}, ticks:{color:'#8b949e', font:{size:10}}},
+      y:{stacked:true, beginAtZero:true, grid:{color:'#222b36'},
+        ticks:{color:'#8b949e', font:{size:10}, callback:v=>v+'g'}}
+    }
+  };
+  if(histChart){ histChart.data=data; histChart.options=opts; histChart.update(); return; }
   histChart=new Chart(el.getContext('2d'), {type:'bar', data, options:opts});
 }
 function renderHistory(){
