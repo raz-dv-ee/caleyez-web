@@ -311,7 +311,7 @@ In `lib/tracking.js`, add these functions before the `return` and add them to th
   }
 
   function mostEaten(rows, limit) {
-    var by = {};
+    var by = Object.create(null); // null-prototype: a food named "__proto__" or "constructor" must not reach Object.prototype
     rows.forEach(function (r) {
       if (!r.food) return;
       if (!by[r.food]) by[r.food] = { food: r.food, count: 0, kcal: 0 };
