@@ -133,3 +133,28 @@ test("sumMicros adds across rows and skips nulls", () => {
   assert.strictEqual(s.vitC, 15);
   assert.strictEqual(s.iron, 1);
 });
+
+test("bmi computes weight over height squared", () => {
+  assert.strictEqual(T.bmi(74, 178), 23.4);
+});
+
+test("bmr uses Mifflin-St Jeor for men", () => {
+  // 10*74 + 6.25*178 - 5*24 + 5 = 740 + 1112.5 - 120 + 5 = 1737.5
+  assert.strictEqual(T.bmr({ sex: "m", weightKg: 74, heightCm: 178, age: 24 }), 1737.5);
+});
+
+test("bmr uses Mifflin-St Jeor for women", () => {
+  // 10*60 + 6.25*165 - 5*30 - 161 = 600 + 1031.25 - 150 - 161 = 1320.25
+  assert.strictEqual(T.bmr({ sex: "f", weightKg: 60, heightCm: 165, age: 30 }), 1320.25);
+});
+
+test("tdee multiplies bmr by the activity factor", () => {
+  const p = { sex: "m", weightKg: 74, heightCm: 178, age: 24, activity: 1.55 };
+  assert.strictEqual(T.tdee(p), Math.round(1737.5 * 1.55));
+});
+
+test("bmi and bmr return null on an incomplete profile", () => {
+  assert.strictEqual(T.bmi(0, 178), null);
+  assert.strictEqual(T.bmr({ sex: "m", weightKg: 74 }), null);
+  assert.strictEqual(T.tdee({}), null);
+});
