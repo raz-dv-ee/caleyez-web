@@ -192,6 +192,15 @@
     <div class="macros" id="rMacros"></div>
     <button class="mini" id="askGemini" style="margin-top:10px">🔮 Ask Gemini (override)</button>
     <button class="btn" id="logBtn" style="margin-top:8px;font-size:15px">＋ Log meal</button>
+    <button class="btn ghost" id="recipeBtn" style="margin-top:6px;font-size:13px">＋ Save my own values</button>
+    <div id="recipeForm" style="display:none;margin-top:8px;gap:6px;flex-wrap:wrap">
+      <input id="rcName" placeholder="name (e.g. my homemade)" style="flex:1;min-width:140px">
+      <input id="rcKcal" type="number" placeholder="kcal/100g" style="width:90px">
+      <input id="rcPro"  type="number" placeholder="protein"   style="width:80px">
+      <input id="rcCarb" type="number" placeholder="carbs"     style="width:80px">
+      <input id="rcFat"  type="number" placeholder="fat"       style="width:70px">
+      <button class="btn" id="rcSave" style="width:auto;padding:8px 14px">Save</button>
+    </div>
   </div>
 
   <div class="result" id="histCard">
@@ -706,6 +715,21 @@ function renderHistory(){
         <span class="lk">${r.kcal!=null?r.kcal+' kcal':'-'}</span></div>${macros}</div>`;
   }).join('') || '<span class="chip">no entries in this period</span>';
 }
+$("recipeBtn").onclick=()=>{
+  if(!last || last.abstain){ alert('Analyze a recognized food first.'); return; }
+  const f=$("recipeForm"); f.style.display = f.style.display==='none' ? 'flex' : 'none';
+};
+$("rcSave").onclick=()=>{
+  if(!last || last.abstain) return;
+  const label=last.chosen.label, name=($("rcName").value||'').trim();
+  const kcal=+$("rcKcal").value;
+  if(!name || !kcal){ alert('Give it a name and a kcal value.'); return; }
+  RECIPES[label]=RECIPES[label]||{};
+  RECIPES[label][name]={kcal, pro:+$("rcPro").value||0, carb:+$("rcCarb").value||0, fat:+$("rcFat").value||0};
+  saveRecipes(RECIPES);
+  selSub=name; $("recipeForm").style.display='none';
+  render(last);
+};
 $("logBtn").onclick=logMeal;
 $("askGemini").onclick=()=>applyGemini().catch(e=>{$("status").textContent='Gemini err';});
 updSound();
