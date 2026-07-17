@@ -116,3 +116,20 @@ test("mergeSubs keeps a recipe named __proto__ instead of silently dropping it",
   assert.strictEqual(m["__proto__"].kcal, 999);
   assert.strictEqual(Object.getPrototypeOf(m), null); // prototype not corrupted by the key
 });
+
+test("scaleMicros scales per-100g micros to the eaten grams", () => {
+  const m = T.scaleMicros({ kcal: 100, vitC: 10, iron: 2 }, 200);
+  assert.strictEqual(m.vitC, 20);
+  assert.strictEqual(m.iron, 4);
+  assert.strictEqual(m.kcal, undefined); // macros are handled separately, not duplicated here
+});
+
+test("scaleMicros returns null when there are no micros", () => {
+  assert.strictEqual(T.scaleMicros({ kcal: 100, pro: 5 }, 100), null);
+});
+
+test("sumMicros adds across rows and skips nulls", () => {
+  const s = T.sumMicros([{ micros: { vitC: 10 } }, { micros: null }, { micros: { vitC: 5, iron: 1 } }]);
+  assert.strictEqual(s.vitC, 15);
+  assert.strictEqual(s.iron, 1);
+});

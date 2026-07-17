@@ -190,6 +190,7 @@
     <div id="rControls"></div>
     <div class="kcal" id="rKcal"></div>
     <div class="macros" id="rMacros"></div>
+    <div id="rMicros"></div>
     <button class="mini" id="askGemini" style="margin-top:10px">🔮 Ask Gemini (override)</button>
     <button class="btn" id="logBtn" style="margin-top:8px;font-size:15px">＋ Log meal</button>
     <button class="btn ghost" id="recipeBtn" style="margin-top:6px;font-size:13px">＋ Save my own values</button>
@@ -304,7 +305,7 @@ async function applyGemini(){
     $("status").textContent='Gemini unavailable';
     if(last.abstain){ $("rFood").textContent='not recognized';
       $("rMeta").innerHTML=`<span class="chip warn">no food detected</span>`;
-      $("rKcal").innerHTML=`<small>point at a single food and retake</small>`; $("rMacros").innerHTML=''; $("rControls").innerHTML=''; }
+      $("rKcal").innerHTML=`<small>point at a single food and retake</small>`; $("rMacros").innerHTML=''; $("rMicros").innerHTML=''; $("rControls").innerHTML=''; }
     else { render(last); await ensureNutrition(last.chosen.label); render(last); }
     return;
   }
@@ -320,7 +321,7 @@ async function applyGemini(){
 function renderGeminiPending(){
   $("rFood").textContent='identifying…';
   $("rMeta").innerHTML=`<span class="chip warn">on-device models unsure</span>`;
-  $("rAlt").textContent=''; $("rControls").innerHTML=''; $("rMacros").innerHTML='';
+  $("rAlt").textContent=''; $("rControls").innerHTML=''; $("rMacros").innerHTML=''; $("rMicros").innerHTML='';
   $("rKcal").innerHTML=`<span class="gemwait"><span class="gemspin"></span>🔮 asking Gemini vision<span class="gemdots"><i>.</i><i>.</i><i>.</i></span></span>`;
   $("result").classList.add('show');
 }
@@ -491,7 +492,7 @@ function renderUnsureOffline(){
   $("rFood").textContent = 'Unrecognized';
   $("rMeta").innerHTML = `<span class="chip warn">on-device models unsure</span>`+
     `<span class="chip" style="border-color:rgba(248,81,73,.55);color:#f85149">⚠ offline</span>`;
-  $("rAlt").textContent=''; $("rControls").innerHTML=''; $("rMacros").innerHTML='';
+  $("rAlt").textContent=''; $("rControls").innerHTML=''; $("rMacros").innerHTML=''; $("rMicros").innerHTML='';
   $("rKcal").innerHTML=`<small>Not a confident food match, and there's <b>no internet</b> to ask the Gemini
     cloud fallback. Recognition runs on-device; the fallback needs a connection. Reconnect and retake.</small>`;
   $("result").classList.add('show');
@@ -508,6 +509,7 @@ function effNut(label){
   const base=(selSub && allSubs[selSub]) ? allSubs[selSub] : NUTR[label];
   if(!base) return null;
   const o={kcal:base.kcal, pro:base.pro, carb:base.carb, fat:base.fat};
+  CZTrack.MICRO_KEYS.forEach(k=>{ if(typeof base[k]==='number') o[k]=base[k]; });
   const cm=COOKMULT[selPrep];
   if(selPrep && selPrep!=='raw' && cm){ o.kcal=o.kcal*cm.factor; o.fat=o.fat+cm.added_fat_g; }
   return o;
@@ -530,6 +532,16 @@ function controlsHTML(label){
 function onSub(v){ selSub=v; if(last) render(last); }
 function onPrep(v){ selPrep=v; if(last) render(last); }
 
+const MICRO_LABEL={fiber:'fiber g',sugar:'sugar g',vitA:'vit A µg',vitC:'vit C mg',vitD:'vit D µg',
+  vitE:'vit E mg',vitK:'vit K µg',b1:'B1 mg',b2:'B2 mg',b3:'B3 mg',b6:'B6 mg',folate:'folate µg',
+  b12:'B12 µg',calcium:'calcium mg',iron:'iron mg',magnesium:'magnesium mg',potassium:'potassium mg',
+  sodium:'sodium mg',zinc:'zinc mg'};
+function microsHTML(nut,grams){
+  const m=CZTrack.scaleMicros(nut,grams);
+  if(!m) return '<div class="muted" style="margin-top:6px;font-size:12px">no vitamin data for this food</div>';
+  return '<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px" class="muted">'+
+    Object.keys(m).map(k=>`<span>${MICRO_LABEL[k]||k}: <b style="color:var(--ink)">${m[k]}</b></span>`).join('')+'</div>';
+}
 function render({chosen, routeI, pIsr, confident, abstain, usedGemini, infMs}){
   const pretty=s=>s.replace(/_/g,' ');
   const label = abstain ? 'not recognized' : pretty(chosen.label);
@@ -561,10 +573,12 @@ function render({chosen, routeI, pIsr, confident, abstain, usedGemini, infMs}){
     if(animateKcal){ countUp($("rKcal"), kc, tail); animateKcal=false; }   // then animate for flair
     $("rMacros").innerHTML=[['pro','protein'],['carb','carbs'],['fat','fat']]
       .map(([k,l])=>`<div class="macro"><b>${(nut[k]*r).toFixed(1)}g</b><span>${l}</span></div>`).join('');
+    $("rMicros").innerHTML=microsHTML(nut, g);
   }else{
     $("rKcal").innerHTML = g>0 ? `<small>no local nutrition for “${pretty(chosen.label)}”</small>`
                                : `<small>enter grams for calories</small>`;
     $("rMacros").innerHTML='';
+    $("rMicros").innerHTML='';
   }
   $("result").classList.add('show');
 }
@@ -660,7 +674,8 @@ function logMeal(){
   const row={ts:Date.now(), food:last.chosen.label, grams:g, expert:last.routeI?'israeli':'global',
     sub:selSub||null, method:(selPrep&&selPrep!=='raw')?selPrep:null,
     kcal:(nut&&g)?Math.round(nut.kcal*r):null,
-    pro:(nut&&g)?+(nut.pro*r).toFixed(1):null, carb:(nut&&g)?+(nut.carb*r).toFixed(1):null, fat:(nut&&g)?+(nut.fat*r).toFixed(1):null};
+    pro:(nut&&g)?+(nut.pro*r).toFixed(1):null, carb:(nut&&g)?+(nut.carb*r).toFixed(1):null, fat:(nut&&g)?+(nut.fat*r).toFixed(1):null,
+    micros: CZTrack.scaleMicros(nut, g)};
   const a=loadLog(); a.push(row); saveLog(a); renderHistory();
   buzz([15,45,15]); sfxSuccess();                                   // log-success feedback
   $("logBtn").textContent='✓ logged'; $("logBtn").classList.add('pulse');
