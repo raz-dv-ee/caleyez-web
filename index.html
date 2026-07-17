@@ -5,6 +5,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   :root{--bg:#0b0f15;--panel:#151b24;--panel2:#1c2531;--line:#2a3440;--ink:#eaf1f8;--mut:#8b98a8;
         --accent:#24a06b;--blue:#58a6ff;--green:#3fb950;--amber:#d29922;--red:#f85149;--navy:#143a63;
@@ -207,6 +208,7 @@
     <div class="macros" id="histMacros" style="margin-top:10px"></div>
       <div id="histAvg" class="muted" style="margin-top:6px;font-size:12px"></div>
     <div id="histList" style="margin-top:10px;font-size:14px"></div>
+      <canvas id="histChart" height="120" style="margin-top:10px"></canvas>
     <div style="display:flex;gap:10px;margin-top:10px">
       <button class="mini" id="histCsv">export CSV</button>
       <button class="mini" id="histClear">clear</button>
@@ -645,6 +647,17 @@ function logMeal(){
   $("logBtn").textContent='✓ logged'; $("logBtn").classList.add('pulse');
   setTimeout(()=>{$("logBtn").textContent='＋ Log meal';$("logBtn").classList.remove('pulse');},1200);
 }
+let histChart=null;
+function renderChart(buckets){
+  const el=$("histChart"); if(!el || typeof Chart==='undefined') return;
+  const data={labels:buckets.map(b=>b.label),
+    datasets:[{data:buckets.map(b=>Math.round(b.kcal)), backgroundColor:'#46c98d', borderRadius:4}]};
+  const opts={responsive:true, plugins:{legend:{display:false}},
+    scales:{x:{grid:{display:false},ticks:{color:'#8b949e',font:{size:10}}},
+            y:{beginAtZero:true,grid:{color:'#222b36'},ticks:{color:'#8b949e',font:{size:10}}}}};
+  if(histChart){ histChart.data=data; histChart.update(); return; }
+  histChart=new Chart(el.getContext('2d'), {type:'bar', data, options:opts});
+}
 function renderHistory(){
   const all=loadLog();
   if(!all.length){ $("histCard").classList.remove('show'); return; }
@@ -652,6 +665,7 @@ function renderHistory(){
   const now=Date.now();
   const rows=CZTrack.filterPeriod(all, PERIOD, now);
   const t=CZTrack.totals(rows);
+  renderChart(CZTrack.dayBuckets(rows, PERIOD, now));
   const title={today:'Today',week:'Last 7 days',month:'Last 30 days'}[PERIOD];
   $("histTitle").textContent=title;
   $("histTotal").textContent='🔥 '+t.kcal+' kcal';
