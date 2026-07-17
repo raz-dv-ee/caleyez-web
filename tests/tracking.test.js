@@ -83,9 +83,13 @@ test("mostEaten handles a food named constructor", () => {
   assert.strictEqual(m[0].count, 1);
 });
 
+// mergeSubs returns a null-prototype map, so compare keys/values rather than deepStrictEqual
+// against an object literal (deepStrictEqual also compares prototypes).
+const plain = (o) => Object.assign({}, o);
+
 test("mergeSubs returns foodmeta subs when there is no recipe", () => {
   const meta = { subs: { ribeye: { kcal: 291 } } };
-  assert.deepStrictEqual(T.mergeSubs(meta, undefined), { ribeye: { kcal: 291 } });
+  assert.deepStrictEqual(plain(T.mergeSubs(meta, undefined)), { ribeye: { kcal: 291 } });
 });
 
 test("mergeSubs adds user recipes alongside foodmeta subs", () => {
@@ -96,9 +100,19 @@ test("mergeSubs adds user recipes alongside foodmeta subs", () => {
 });
 
 test("mergeSubs works when the food has no foodmeta entry", () => {
-  assert.deepStrictEqual(T.mergeSubs(undefined, { mine: { kcal: 1 } }), { mine: { kcal: 1 } });
+  assert.deepStrictEqual(plain(T.mergeSubs(undefined, { mine: { kcal: 1 } })), { mine: { kcal: 1 } });
 });
 
 test("mergeSubs returns an empty object when there is nothing", () => {
-  assert.deepStrictEqual(T.mergeSubs(undefined, undefined), {});
+  assert.deepStrictEqual(plain(T.mergeSubs(undefined, undefined)), {});
+});
+
+test("mergeSubs keeps a recipe named __proto__ instead of silently dropping it", () => {
+  // localStorage round-trips through JSON.parse, where "__proto__" IS a real own key
+  // (unlike an object literal), so a user recipe by that name must survive the merge.
+  const recipes = JSON.parse('{"__proto__":{"kcal":999},"my pizza":{"kcal":240}}');
+  const m = T.mergeSubs({ subs: { ribeye: { kcal: 291 } } }, recipes);
+  assert.deepStrictEqual(Object.keys(m).sort(), ["__proto__", "my pizza", "ribeye"]);
+  assert.strictEqual(m["__proto__"].kcal, 999);
+  assert.strictEqual(Object.getPrototypeOf(m), null); // prototype not corrupted by the key
 });
