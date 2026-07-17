@@ -82,3 +82,23 @@ test("mostEaten handles a food named constructor", () => {
   assert.strictEqual(m.length, 1);
   assert.strictEqual(m[0].count, 1);
 });
+
+test("mergeSubs returns foodmeta subs when there is no recipe", () => {
+  const meta = { subs: { ribeye: { kcal: 291 } } };
+  assert.deepStrictEqual(T.mergeSubs(meta, undefined), { ribeye: { kcal: 291 } });
+});
+
+test("mergeSubs adds user recipes alongside foodmeta subs", () => {
+  const meta = { subs: { ribeye: { kcal: 291 } } };
+  const recipes = { "my homemade": { kcal: 240 } };
+  const m = T.mergeSubs(meta, recipes);
+  assert.deepStrictEqual(Object.keys(m).sort(), ["my homemade", "ribeye"]);
+});
+
+test("mergeSubs works when the food has no foodmeta entry", () => {
+  assert.deepStrictEqual(T.mergeSubs(undefined, { mine: { kcal: 1 } }), { mine: { kcal: 1 } });
+});
+
+test("mergeSubs returns an empty object when there is nothing", () => {
+  assert.deepStrictEqual(T.mergeSubs(undefined, undefined), {});
+});
