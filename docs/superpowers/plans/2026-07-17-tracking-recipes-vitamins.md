@@ -100,7 +100,7 @@ test("module loads and exports an object", () => {
 
 - [ ] **Step 3: Run the tests to verify they pass**
 
-Run: `cd "E:/caleyez-web" && node --test tests/`
+Run: `cd "E:/caleyez-web" && node --test`
 Expected: `# pass 1`, exit code 0.
 
 - [ ] **Step 4: Load the library in the app**
@@ -177,7 +177,7 @@ test("totals on an empty list is all zeros", () => {
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: FAIL, `T.periodStart is not a function`.
 
 - [ ] **Step 3: Implement**
@@ -220,7 +220,7 @@ In `lib/tracking.js`, replace `return {};` with:
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: all pass.
 
 - [ ] **Step 5: Commit**
@@ -275,7 +275,7 @@ test("mostEaten respects the limit", () => {
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: FAIL, `T.dayBuckets is not a function`.
 
 - [ ] **Step 3: Implement**
@@ -311,7 +311,7 @@ In `lib/tracking.js`, add these functions before the `return` and add them to th
   }
 
   function mostEaten(rows, limit) {
-    var by = {};
+    var by = Object.create(null); // null-prototype: a food named "__proto__" or "constructor" must not reach Object.prototype
     rows.forEach(function (r) {
       if (!r.food) return;
       if (!by[r.food]) by[r.food] = { food: r.food, count: 0, kcal: 0 };
@@ -329,7 +329,7 @@ Add `dayBuckets: dayBuckets, mostEaten: mostEaten` to the returned object.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: all pass.
 
 - [ ] **Step 5: Commit**
@@ -594,7 +594,7 @@ test("mergeSubs returns an empty object when there is nothing", () => {
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: FAIL, `T.mergeSubs is not a function`.
 
 - [ ] **Step 3: Implement**
@@ -605,7 +605,7 @@ Add to `lib/tracking.js` and to the returned object:
   // A user recipe is just another "sub". Recipes win on a name clash.
   function mergeSubs(meta, recipesForFood) {
     var base = (meta && meta.subs) ? meta.subs : {};
-    var out = {};
+    var out = Object.create(null); // null-prototype: recipe names come from JSON.parse, where "__proto__" is a real key
     Object.keys(base).forEach(function (k) { out[k] = base[k]; });
     if (recipesForFood) Object.keys(recipesForFood).forEach(function (k) { out[k] = recipesForFood[k]; });
     return out;
@@ -614,7 +614,7 @@ Add to `lib/tracking.js` and to the returned object:
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: all pass.
 
 - [ ] **Step 5: Commit**
@@ -993,7 +993,7 @@ test("sumMicros adds across rows and skips nulls", () => {
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: FAIL, `T.scaleMicros is not a function`.
 
 - [ ] **Step 3: Implement**
@@ -1030,7 +1030,7 @@ Add `MICRO_KEYS: MICRO_KEYS, scaleMicros: scaleMicros, sumMicros: sumMicros` to 
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: all pass.
 
 - [ ] **Step 5: Store micros when logging**
@@ -1186,7 +1186,7 @@ test("bmi and bmr return null on an incomplete profile", () => {
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: FAIL, `T.bmi is not a function`.
 
 - [ ] **Step 3: Implement**
@@ -1217,7 +1217,7 @@ Add to `lib/tracking.js` and to the returned object:
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: all pass.
 
 - [ ] **Step 5: Commit**
@@ -1429,7 +1429,7 @@ test("mergeRows dedupes by ts", () => {
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: FAIL, `T.toCSV is not a function`.
 
 - [ ] **Step 3: Implement**
@@ -1501,7 +1501,7 @@ Add `toCSV: toCSV, fromCSV: fromCSV, mergeRows: mergeRows` to the returned objec
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `node --test tests/`
+Run: `node --test`
 Expected: all pass.
 
 - [ ] **Step 5: Commit**
@@ -1575,7 +1575,7 @@ git commit -m "Add CSV export and import for the meal log"
 
 - [ ] **Step 1: Run the whole test suite**
 
-Run: `cd "E:/caleyez-web" && node --test tests/`
+Run: `cd "E:/caleyez-web" && node --test`
 Expected: all tests pass, exit code 0.
 
 - [ ] **Step 2: Check the style rules**

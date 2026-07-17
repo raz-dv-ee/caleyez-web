@@ -15,11 +15,19 @@
 const ALLOW_ORIGIN = "*";                       // e.g. "https://raz-dv-ee.github.io"
 const CACHE_TTL    = 60 * 60 * 24 * 30;         // 30 days — nutrition facts are effectively static
 // USDA nutrient IDs -> our keys. 1008/2047/2048 = energy(kcal), 1003 protein, 1005 carbs, 1004 fat.
-const NUTRIENT = { 1008: "kcal", 2047: "kcal", 2048: "kcal", 1003: "pro", 1005: "carb", 1004: "fat" };
+const NUTRIENT = {
+  1008: "kcal", 2047: "kcal", 2048: "kcal", 1003: "pro", 1005: "carb", 1004: "fat",
+  1079: "fiber", 2000: "sugar",
+  1106: "vitA", 1162: "vitC", 1114: "vitD", 1109: "vitE", 1185: "vitK",
+  1165: "b1", 1166: "b2", 1167: "b3", 1175: "b6", 1177: "folate", 1178: "b12",
+  1087: "calcium", 1089: "iron", 1090: "magnesium", 1092: "potassium", 1093: "sodium", 1095: "zinc"
+};
+const MICRO_KEYS = ["fiber","sugar","vitA","vitC","vitD","vitE","vitK","b1","b2","b3","b6","folate","b12",
+  "calcium","iron","magnesium","potassium","sodium","zinc"];
 
 // Descriptions containing a JUNK token are rejected UNLESS the query itself asked for that token.
 // This is what stops "apple" -> "apple juice" and "tomato" -> "tomato sauce, canned".
-const CACHE_VER = "7";                             // bump to invalidate the edge cache after logic changes
+const CACHE_VER = "8";                             // bump to invalidate the edge cache after logic changes
 const JUNK = ["juice","drink","beverage","nectar","dried","dehydrated","chips","crisps","powder",
   "flour","baby food","infant","strained","sauce","gravy","soup","broth","candy","candies",
   "syrup","jam","jelly","jellied","preserve","marmalade","cocktail","pie filling","frozen novelties",
@@ -112,8 +120,14 @@ export default {
 
       const best = ranked.find(c => c.kept);
       const out = best
-        ? { kcal: best.macros.kcal, pro: best.macros.pro ?? 0, carb: best.macros.carb ?? 0,
-            fat: best.macros.fat ?? 0, _desc: best.desc }
+        ? Object.assign(
+            { kcal: best.macros.kcal, pro: best.macros.pro ?? 0, carb: best.macros.carb ?? 0,
+              fat: best.macros.fat ?? 0, _desc: best.desc },
+            MICRO_KEYS.reduce((acc, k) => {
+              if (typeof best.macros[k] === "number") acc[k] = best.macros[k];
+              return acc;
+            }, {})
+          )
         : null;
       const payload = (debug && out)
         ? { ...out, _candidates: ranked.map(({ desc, score, kept, reject }) =>

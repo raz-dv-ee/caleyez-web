@@ -56,6 +56,7 @@
   .food{font-size:26px;font-weight:800;text-transform:capitalize}
   .meta{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 4px}
   .chip{font-size:12px;padding:4px 10px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);color:var(--mut)}
+  .muted{color:var(--mut)}
   .gemwait{display:inline-flex;align-items:center;gap:10px;font-size:16px;color:#b18cf0;font-weight:700}
   .gemspin{width:18px;height:18px;flex:none;border:3px solid rgba(177,140,240,.25);border-top-color:#b18cf0;border-radius:50%;animation:gemsp .8s linear infinite}
   @keyframes gemsp{to{transform:rotate(360deg)}}
@@ -189,18 +190,65 @@
     <div id="rControls"></div>
     <div class="kcal" id="rKcal"></div>
     <div class="macros" id="rMacros"></div>
+    <div id="rMicros"></div>
     <button class="mini" id="askGemini" style="margin-top:10px">🔮 Ask Gemini (override)</button>
     <button class="btn" id="logBtn" style="margin-top:8px;font-size:15px">＋ Log meal</button>
+    <button class="btn ghost" id="recipeBtn" style="margin-top:6px;font-size:13px">＋ Save my own values</button>
+    <div id="recipeForm" style="display:none;margin-top:8px;gap:6px;flex-wrap:wrap">
+      <input id="rcName" placeholder="name (e.g. my homemade)" style="flex:1;min-width:140px">
+      <input id="rcKcal" type="number" placeholder="kcal/100g" style="width:90px">
+      <input id="rcPro"  type="number" placeholder="protein"   style="width:80px">
+      <input id="rcCarb" type="number" placeholder="carbs"     style="width:80px">
+      <input id="rcFat"  type="number" placeholder="fat"       style="width:70px">
+      <button class="btn" id="rcSave" style="width:auto;padding:8px 14px">Save</button>
+    </div>
+  </div>
+
+  <button class="chip" id="foodsBtn" style="margin-bottom:6px">I know 145 foods</button>
+  <div class="result" id="foodsCard" style="display:none">
+    <input id="foodSearch" placeholder="search a food..." style="width:100%;margin-bottom:6px">
+    <div id="foodList" style="max-height:240px;overflow:auto;font-size:13px"></div>
+  </div>
+
+  <div class="result show" id="greetCard" style="display:none">
+    <div class="lh"><span class="lf" id="greetText">Hello</span>
+      <button class="chip" id="profBtn">profile</button></div>
+    <div id="profForm" style="display:none;flex-wrap:wrap;gap:6px;margin-top:8px">
+      <input id="pfName" placeholder="name" style="flex:1;min-width:110px">
+      <select id="pfSex" style="width:90px"><option value="m">male</option><option value="f">female</option></select>
+      <input id="pfAge" type="number" placeholder="age" style="width:70px">
+      <input id="pfH" type="number" placeholder="height cm" style="width:95px">
+      <input id="pfW" type="number" placeholder="weight kg" style="width:95px">
+      <select id="pfAct" style="width:130px">
+        <option value="1.2">sedentary</option><option value="1.375">light</option>
+        <option value="1.55" selected>moderate</option><option value="1.725">very active</option>
+        <option value="1.9">extra active</option>
+      </select>
+      <button class="btn" id="pfSave" style="width:auto;padding:8px 14px">Save</button>
+    </div>
   </div>
 
   <div class="result" id="histCard">
     <div style="display:flex;align-items:baseline;justify-content:space-between">
-      <b>Today</b><span class="chip" id="histTotal">0 kcal</span>
+      <b id="histTitle">Today</b>
+      <span class="chip" id="histTotal">0 kcal</span>
+      <span style="margin-left:auto;display:flex;gap:4px">
+        <button class="chip" id="pTODAY" onclick="setPeriod('today')">Today</button>
+        <button class="chip" id="pWEEK" onclick="setPeriod('week')">Week</button>
+        <button class="chip" id="pMONTH" onclick="setPeriod('month')">Month</button>
+      </span>
     </div>
     <div class="macros" id="histMacros" style="margin-top:10px"></div>
+      <div id="histAvg" class="muted" style="margin-top:6px;font-size:12px"></div>
     <div id="histList" style="margin-top:10px;font-size:14px"></div>
+      <canvas id="histChart" height="120" style="margin-top:10px"></canvas>
+      <div id="histTop" style="margin-top:10px;font-size:13px"></div>
+      <div id="histMicros" style="margin-top:8px"></div>
     <div style="display:flex;gap:10px;margin-top:10px">
       <button class="mini" id="histCsv">export CSV</button>
+      <label class="mini" style="cursor:pointer">import CSV
+        <input id="csvImport" type="file" accept=".csv,text/csv" style="display:none">
+      </label>
       <button class="mini" id="histClear">clear</button>
     </div>
   </div>
@@ -213,8 +261,12 @@
 
 <canvas id="cv" hidden></canvas>
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.webgpu.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="lib/tracking.js"></script>
 <script>
 const $=id=>document.getElementById(id);
+// Escape user-controlled strings (recipe names, imported log rows) before they go into innerHTML.
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 ort.env.wasm.wasmPaths="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/";
 ort.env.wasm.numThreads=1;
 const MODEL_BASE="https://raz-dv-ee.github.io/CalEyeZ/webmodels/";
@@ -281,7 +333,7 @@ async function applyGemini(){
     $("status").textContent='Gemini unavailable';
     if(last.abstain){ $("rFood").textContent='not recognized';
       $("rMeta").innerHTML=`<span class="chip warn">no food detected</span>`;
-      $("rKcal").innerHTML=`<small>point at a single food and retake</small>`; $("rMacros").innerHTML=''; $("rControls").innerHTML=''; }
+      $("rKcal").innerHTML=`<small>point at a single food and retake</small>`; $("rMacros").innerHTML=''; $("rMicros").innerHTML=''; $("rControls").innerHTML=''; }
     else { render(last); await ensureNutrition(last.chosen.label); render(last); }
     return;
   }
@@ -297,7 +349,7 @@ async function applyGemini(){
 function renderGeminiPending(){
   $("rFood").textContent='identifying…';
   $("rMeta").innerHTML=`<span class="chip warn">on-device models unsure</span>`;
-  $("rAlt").textContent=''; $("rControls").innerHTML=''; $("rMacros").innerHTML='';
+  $("rAlt").textContent=''; $("rControls").innerHTML=''; $("rMacros").innerHTML=''; $("rMicros").innerHTML='';
   $("rKcal").innerHTML=`<span class="gemwait"><span class="gemspin"></span>🔮 asking Gemini vision<span class="gemdots"><i>.</i><i>.</i><i>.</i></span></span>`;
   $("result").classList.add('show');
 }
@@ -468,7 +520,7 @@ function renderUnsureOffline(){
   $("rFood").textContent = 'Unrecognized';
   $("rMeta").innerHTML = `<span class="chip warn">on-device models unsure</span>`+
     `<span class="chip" style="border-color:rgba(248,81,73,.55);color:#f85149">⚠ offline</span>`;
-  $("rAlt").textContent=''; $("rControls").innerHTML=''; $("rMacros").innerHTML='';
+  $("rAlt").textContent=''; $("rControls").innerHTML=''; $("rMacros").innerHTML=''; $("rMicros").innerHTML='';
   $("rKcal").innerHTML=`<small>Not a confident food match, and there's <b>no internet</b> to ask the Gemini
     cloud fallback. Recognition runs on-device; the fallback needs a connection. Reconnect and retake.</small>`;
   $("result").classList.add('show');
@@ -481,29 +533,43 @@ let last=null;
 // added-oil grams; protein/carb grams are ~preserved (conservative). Returns {kcal,pro,carb,fat}.
 function effNut(label){
   const m=FOODMETA[label]||{};
-  const base=(selSub && m.subs && m.subs[selSub]) ? m.subs[selSub] : NUTR[label];
+  const allSubs=CZTrack.mergeSubs(m, RECIPES[label]);
+  const base=(selSub && allSubs[selSub]) ? allSubs[selSub] : NUTR[label];
   if(!base) return null;
   const o={kcal:base.kcal, pro:base.pro, carb:base.carb, fat:base.fat};
+  CZTrack.MICRO_KEYS.forEach(k=>{ if(typeof base[k]==='number') o[k]=base[k]; });
   const cm=COOKMULT[selPrep];
   if(selPrep && selPrep!=='raw' && cm){ o.kcal=o.kcal*cm.factor; o.fat=o.fat+cm.added_fat_g; }
   return o;
 }
 // Build the conditional sub-food + prep dropdowns for a label (empty string if neither applies).
 function controlsHTML(label){
-  const m=FOODMETA[label]; if(!m) return '';
+  const m=FOODMETA[label]||{};
+  const allSubs=CZTrack.mergeSubs(m, RECIPES[label]);
+  if(!Object.keys(allSubs).length && !(m.prep&&m.prep.length)) return '';
   const S='padding:7px 9px;border-radius:9px;background:var(--card,#182233);color:inherit;border:1px solid var(--line,#2a3446);font-size:13px';
   const L='font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px';
   let h='';
-  const subs=m.subs?Object.keys(m.subs):[];
-  if(subs.length) h+=`<span style="${L}">${m.sub_label||'cut/type'}</span><select style="${S}" onchange="onSub(this.value)">
-    <option value="">typical</option>`+subs.map(k=>`<option ${k===selSub?'selected':''}>${k}</option>`).join('')+`</select>`;
+  const subs=Object.keys(allSubs);
+  if(subs.length) h+=`<span style="${L}">${esc(m.sub_label||'cut/type')}</span><select style="${S}" onchange="onSub(this.value)">
+    <option value="">typical</option>`+subs.map(k=>`<option value="${esc(k)}" ${k===selSub?'selected':''}>${esc(k)}</option>`).join('')+`</select>`;
   if(m.prep && m.prep.length) h+=`<span style="${L}">prep</span><select style="${S}" onchange="onPrep(this.value)">`+
-    m.prep.map(k=>`<option value="${k}" ${k===selPrep?'selected':''}>${k.replace(/_/g,' ')}</option>`).join('')+`</select>`;
+    m.prep.map(k=>`<option value="${esc(k)}" ${k===selPrep?'selected':''}>${esc(k).replace(/_/g,' ')}</option>`).join('')+`</select>`;
   return h?`<div style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin:8px 0">${h}</div>`:'';
 }
 function onSub(v){ selSub=v; if(last) render(last); }
 function onPrep(v){ selPrep=v; if(last) render(last); }
 
+const MICRO_LABEL={fiber:'fiber g',sugar:'sugar g',vitA:'vit A µg',vitC:'vit C mg',vitD:'vit D µg',
+  vitE:'vit E mg',vitK:'vit K µg',b1:'B1 mg',b2:'B2 mg',b3:'B3 mg',b6:'B6 mg',folate:'folate µg',
+  b12:'B12 µg',calcium:'calcium mg',iron:'iron mg',magnesium:'magnesium mg',potassium:'potassium mg',
+  sodium:'sodium mg',zinc:'zinc mg'};
+function microsHTML(nut,grams){
+  const m=CZTrack.scaleMicros(nut,grams);
+  if(!m) return '<div class="muted" style="margin-top:6px;font-size:12px">no vitamin data for this food</div>';
+  return '<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px" class="muted">'+
+    Object.keys(m).map(k=>`<span>${MICRO_LABEL[k]||k}: <b style="color:var(--ink)">${m[k]}</b></span>`).join('')+'</div>';
+}
 function render({chosen, routeI, pIsr, confident, abstain, usedGemini, infMs}){
   const pretty=s=>s.replace(/_/g,' ');
   const label = abstain ? 'not recognized' : pretty(chosen.label);
@@ -535,10 +601,12 @@ function render({chosen, routeI, pIsr, confident, abstain, usedGemini, infMs}){
     if(animateKcal){ countUp($("rKcal"), kc, tail); animateKcal=false; }   // then animate for flair
     $("rMacros").innerHTML=[['pro','protein'],['carb','carbs'],['fat','fat']]
       .map(([k,l])=>`<div class="macro"><b>${(nut[k]*r).toFixed(1)}g</b><span>${l}</span></div>`).join('');
+    $("rMicros").innerHTML=microsHTML(nut, g);
   }else{
     $("rKcal").innerHTML = g>0 ? `<small>no local nutrition for “${pretty(chosen.label)}”</small>`
                                : `<small>enter grams for calories</small>`;
     $("rMacros").innerHTML='';
+    $("rMicros").innerHTML='';
   }
   $("result").classList.add('show');
 }
@@ -620,6 +688,16 @@ $("scaleBtn").onclick=connectScale;
 
 // ---- meal log (on-device, localStorage) ----
 const LKEY='caleyez_log';
+const RKEY='caleyez_recipes';
+const loadRecipes=()=>{try{return JSON.parse(localStorage.getItem(RKEY)||'{}');}catch(e){return {};}};
+const saveRecipes=o=>localStorage.setItem(RKEY,JSON.stringify(o));
+let RECIPES=loadRecipes();
+const PKEY='caleyez_profile';
+const loadProfile=()=>{try{return JSON.parse(localStorage.getItem(PKEY)||'null');}catch(e){return null;}};
+const saveProfile=o=>localStorage.setItem(PKEY,JSON.stringify(o));
+let PROFILE=loadProfile();
+let PERIOD='today';                                     // 'today' | 'week' | 'month'
+function setPeriod(p){ PERIOD=p; renderHistory(); }
 const loadLog=()=>{try{return JSON.parse(localStorage.getItem(LKEY)||'[]');}catch(e){return [];}};
 const saveLog=a=>localStorage.setItem(LKEY,JSON.stringify(a));
 function logMeal(){
@@ -628,43 +706,158 @@ function logMeal(){
   const row={ts:Date.now(), food:last.chosen.label, grams:g, expert:last.routeI?'israeli':'global',
     sub:selSub||null, method:(selPrep&&selPrep!=='raw')?selPrep:null,
     kcal:(nut&&g)?Math.round(nut.kcal*r):null,
-    pro:(nut&&g)?+(nut.pro*r).toFixed(1):null, carb:(nut&&g)?+(nut.carb*r).toFixed(1):null, fat:(nut&&g)?+(nut.fat*r).toFixed(1):null};
+    pro:(nut&&g)?+(nut.pro*r).toFixed(1):null, carb:(nut&&g)?+(nut.carb*r).toFixed(1):null, fat:(nut&&g)?+(nut.fat*r).toFixed(1):null,
+    micros: CZTrack.scaleMicros(nut, g)};
   const a=loadLog(); a.push(row); saveLog(a); renderHistory();
   buzz([15,45,15]); sfxSuccess();                                   // log-success feedback
   $("logBtn").textContent='✓ logged'; $("logBtn").classList.add('pulse');
   setTimeout(()=>{$("logBtn").textContent='＋ Log meal';$("logBtn").classList.remove('pulse');},1200);
 }
+let histChart=null;
+function renderChart(buckets){
+  const el=$("histChart"); if(!el || typeof Chart==='undefined') return;
+  const data={labels:buckets.map(b=>b.label),
+    datasets:[{data:buckets.map(b=>Math.round(b.kcal)), backgroundColor:'#46c98d', borderRadius:4}]};
+  const opts={responsive:true, plugins:{legend:{display:false}},
+    scales:{x:{grid:{display:false},ticks:{color:'#8b949e',font:{size:10}}},
+            y:{beginAtZero:true,grid:{color:'#222b36'},ticks:{color:'#8b949e',font:{size:10}}}}};
+  if(histChart){ histChart.data=data; histChart.update(); return; }
+  histChart=new Chart(el.getContext('2d'), {type:'bar', data, options:opts});
+}
 function renderHistory(){
-  const a=loadLog(), t0=new Date().setHours(0,0,0,0), today=a.filter(r=>r.ts>=t0);
-  if(!a.length){ $("histCard").classList.remove('show'); return; }
+  const all=loadLog();
+  if(!all.length){ $("histCard").classList.remove('show'); return; }
   $("histCard").classList.add('show');
-  const sum=(k)=>today.reduce((s,r)=>s+(r[k]||0),0);
-  $("histTotal").textContent=sum('kcal')+' kcal';
+  const now=Date.now();
+  const rows=CZTrack.filterPeriod(all, PERIOD, now);
+  const t=CZTrack.totals(rows);
+  renderChart(CZTrack.dayBuckets(rows, PERIOD, now));
+  const top=CZTrack.mostEaten(rows,5);
+  $("histTop").innerHTML = top.length
+    ? '<div class="muted" style="margin-bottom:4px">Most eaten</div>'+top.map(m=>
+        `<div class="logrow"><div class="lh"><span class="lf">${esc(m.food).replace(/_/g,' ')}
+         <span class="lsub">x${m.count}</span></span><span class="lk">${Math.round(m.kcal)} kcal</span></div></div>`).join('')
+    : '';
+  const sm=CZTrack.sumMicros(rows), mk=Object.keys(sm);
+  $("histMicros").innerHTML = mk.length
+    ? '<div class="muted" style="margin-bottom:4px">Vitamins and minerals this period</div>'+
+      '<div style="display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px" class="muted">'+
+      mk.map(k=>`<span>${MICRO_LABEL[k]||k}: <b style="color:var(--ink)">${sm[k]}</b></span>`).join('')+'</div>'
+    : '';
+  const title={today:'Today',week:'Last 7 days',month:'Last 30 days'}[PERIOD];
+  $("histTitle").textContent=title;
+  $("histTotal").textContent='🔥 '+t.kcal+' kcal';
+  const t2=CZTrack.tdee(PROFILE||{});
+  if(t2){
+    const days={today:1,week:7,month:30}[PERIOD];
+    const burned=t2*days, net=t.kcal-burned;
+    $("histTotal").textContent=`🔥 ${t.kcal} kcal · burned ~${burned} · net ${net>0?'+':''}${net}`;
+  }
+  ['TODAY','WEEK','MONTH'].forEach(k=>{
+    const b=$("p"+k); if(b) b.style.opacity = (k.toLowerCase()===PERIOD)?'1':'.45';
+  });
   $("histMacros").innerHTML=[['pro','protein'],['carb','carbs'],['fat','fat']]
-    .map(([k,l])=>`<div class="macro"><b>${sum(k).toFixed(0)}g</b><span>${l}</span></div>`).join('');
-  $("histTotal").textContent='🔥 '+sum('kcal')+' kcal';
-  $("histList").innerHTML=today.slice(-8).reverse().map(r=>{
+    .map(([k,l])=>`<div class="macro"><b>${t[k].toFixed(0)}g</b><span>${l}</span></div>`).join('');
+  const nDays={today:1,week:7,month:30}[PERIOD];
+  $("histAvg").textContent = nDays>1
+    ? `average per day: ${Math.round(t.kcal/nDays)} kcal · ${(t.pro/nDays).toFixed(1)}g protein · `+
+      `${(t.carb/nDays).toFixed(1)}g carbs · ${(t.fat/nDays).toFixed(1)}g fat`
+    : '';
+  $("histList").innerHTML=rows.slice(-8).reverse().map(r=>{
     const tm=new Date(r.ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
     const macros=(r.pro!=null)?`<div class="lm">
         <span><i style="background:var(--blue)"></i>${r.pro}g protein</span>
         <span><i style="background:var(--amber)"></i>${r.carb}g carbs</span>
         <span><i style="background:var(--accent)"></i>${r.fat}g fat</span></div>`:'';
     return `<div class="logrow"><div class="lh">
-        <span class="lf">${r.food.replace(/_/g,' ')} <span class="lsub">${r.sub?r.sub+' · ':''}${r.method?r.method.replace(/_/g,' ')+' · ':''}${r.grams}g · ${tm}</span></span>
+        <span class="lf">${esc(r.food).replace(/_/g,' ')} <span class="lsub">${r.sub?esc(r.sub)+' · ':''}${r.method?esc(r.method).replace(/_/g,' ')+' · ':''}${r.grams}g · ${tm}</span></span>
         <span class="lk">${r.kcal!=null?r.kcal+' kcal':'-'}</span></div>${macros}</div>`;
-  }).join('') || '<span class="chip">no entries today</span>';
+  }).join('') || '<span class="chip">no entries in this period</span>';
 }
+$("recipeBtn").onclick=()=>{
+  if(!last || last.abstain){ alert('Analyze a recognized food first.'); return; }
+  const f=$("recipeForm"); f.style.display = f.style.display==='none' ? 'flex' : 'none';
+};
+$("rcSave").onclick=()=>{
+  if(!last || last.abstain) return;
+  const label=last.chosen.label, name=($("rcName").value||'').trim();
+  const kcal=+$("rcKcal").value;
+  if(!name || !kcal || kcal<0){ alert('Give it a name and a kcal value (0 or more).'); return; }
+  const nn=v=>Math.max(0,+v||0); // clamp macros to non-negative so a stray minus cannot deflate totals
+  RECIPES[label]=RECIPES[label]||{};
+  RECIPES[label][name]={kcal, pro:nn($("rcPro").value), carb:nn($("rcCarb").value), fat:nn($("rcFat").value)};
+  saveRecipes(RECIPES);
+  selSub=name; $("recipeForm").style.display='none';
+  ['rcName','rcKcal','rcPro','rcCarb','rcFat'].forEach(id=>$(id).value=''); // reset so stale values cannot carry to the next food
+  render(last);
+};
+function renderGreeting(){
+  const c=$("greetCard");
+  c.style.display='';
+  if(!PROFILE || !PROFILE.name){ $("greetText").textContent='Hello - set up your profile'; return; }
+  const b=CZTrack.bmi(PROFILE.weightKg, PROFILE.heightCm), t=CZTrack.tdee(PROFILE);
+  $("greetText").innerHTML=`Hello <b>${esc(PROFILE.name)}</b>`+
+    (b?` <span class="lsub">BMI ${b}${t?` · burns ~${t} kcal/day`:''}</span>`:'');
+}
+$("profBtn").onclick=()=>{
+  const f=$("profForm"); f.style.display = f.style.display==='none' ? 'flex' : 'none';
+  if(PROFILE){ $("pfName").value=PROFILE.name||''; $("pfSex").value=PROFILE.sex||'m';
+    $("pfAge").value=PROFILE.age||''; $("pfH").value=PROFILE.heightCm||'';
+    $("pfW").value=PROFILE.weightKg||''; $("pfAct").value=PROFILE.activity||1.55; }
+};
+$("pfSave").onclick=()=>{
+  const nn=v=>Math.max(0,+v||0); // clamp so a stray minus cannot produce a negative BMI/TDEE
+  PROFILE={name:($("pfName").value||'').trim(), sex:$("pfSex").value, age:nn($("pfAge").value),
+    heightCm:nn($("pfH").value), weightKg:nn($("pfW").value), activity:+$("pfAct").value||1.55};
+  saveProfile(PROFILE); $("profForm").style.display='none'; renderGreeting(); renderHistory();
+};
+renderGreeting();
+function allFoods(){
+  const g=Object.values(namesG||{}).map(n=>({n, grp:'Global'}));
+  const i=Object.values(namesI||{}).filter(n=>n!=='background').map(n=>({n, grp:'Israeli'}));
+  return g.concat(i).sort((a,b)=>a.n.localeCompare(b.n));
+}
+function renderFoods(){
+  const q=($("foodSearch").value||'').toLowerCase().replace(/\s+/g,'_');
+  const list=allFoods().filter(f=>!q || f.n.includes(q));
+  $("foodsBtn").textContent=`I know ${allFoods().length} foods`;
+  $("foodList").innerHTML = list.length ? list.map(f=>{
+    const off = NUTR && NUTR[f.n] ? '<span class="chip" style="background:#123a2a;color:#46c98d">offline</span>' : '';
+    return `<div class="logrow"><div class="lh"><span class="lf">${f.n.replace(/_/g,' ')}
+      <span class="lsub">${f.grp}</span></span>${off}</div></div>`;
+  }).join('') : '<span class="chip">no match</span>';
+}
+$("foodsBtn").onclick=()=>{
+  const c=$("foodsCard"); c.style.display = c.style.display==='none' ? '' : 'none';
+  if(c.style.display==='') renderFoods();
+};
+$("foodSearch").oninput=renderFoods;
 $("logBtn").onclick=logMeal;
 $("askGemini").onclick=()=>applyGemini().catch(e=>{$("status").textContent='Gemini err';});
 updSound();
 $("soundBtn").onclick=()=>{ SOUND=!SOUND; localStorage.setItem('caleyez_sound',SOUND?'on':'off'); updSound(); if(SOUND){ audio(); sfxReady(); } };
 $("histClear").onclick=()=>{ if(confirm('Clear all logged meals?')){saveLog([]);renderHistory();} };
 $("histCsv").onclick=()=>{
-  const a=loadLog(); if(!a.length)return;
-  const head='datetime,food,sub,method,grams,expert,kcal,protein,carb,fat';
-  const rows=a.map(r=>[new Date(r.ts).toISOString(),r.food,r.sub||'',r.method||'',r.grams,r.expert,r.kcal,r.pro,r.carb,r.fat].join(','));
-  const blob=new Blob([head+'\n'+rows.join('\n')],{type:'text/csv'});
-  const u=URL.createObjectURL(blob),link=document.createElement('a');link.href=u;link.download='caleyez_log.csv';link.click();
+  const rows=loadLog(); if(!rows.length){ alert('Nothing to export yet.'); return; }
+  const blob=new Blob([CZTrack.toCSV(rows)], {type:'text/csv'});   // round-trippable with the importer below
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='caleyez-log-'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+};
+$("csvImport").onchange=async(e)=>{
+  const f=e.target.files && e.target.files[0]; if(!f) return;
+  try{
+    // Drop rows whose ts did not parse, and null out any NaN numeric so one corrupt cell cannot poison totals.
+    const clean=CZTrack.fromCSV(await f.text()).filter(r=>typeof r.ts==='number' && !Number.isNaN(r.ts)).map(r=>{
+      ['grams','kcal','pro','carb','fat'].forEach(k=>{ if(typeof r[k]==='number' && Number.isNaN(r[k])) r[k]=null; });
+      return r;
+    });
+    const merged=CZTrack.mergeRows(loadLog(), clean);
+    saveLog(merged); renderHistory();
+    alert('Imported. Log now has '+merged.length+' entries.');
+  }catch(err){ alert('Could not read that CSV.'); }
+  e.target.value='';
 };
 
 boot();
