@@ -69,3 +69,16 @@ test("mostEaten respects the limit", () => {
   const rows = [{ food: "a" }, { food: "b" }, { food: "c" }];
   assert.strictEqual(T.mostEaten(rows, 2).length, 2);
 });
+
+test("mostEaten handles food names that collide with Object.prototype", () => {
+  const m = T.mostEaten([{ food: "__proto__", kcal: 10 }, { food: "pizza", kcal: 5 }], 5);
+  assert.strictEqual(m.length, 2);
+  assert.strictEqual(m.find((r) => r.food === "__proto__").kcal, 10);
+  assert.strictEqual({}.count, undefined); // Object.prototype must not be polluted
+});
+
+test("mostEaten handles a food named constructor", () => {
+  const m = T.mostEaten([{ food: "constructor", kcal: 10 }], 5);
+  assert.strictEqual(m.length, 1);
+  assert.strictEqual(m[0].count, 1);
+});
