@@ -40,3 +40,32 @@ test("totals on an empty list is all zeros", () => {
   const t = T.totals([]);
   assert.deepStrictEqual(t, { kcal: 0, pro: 0, carb: 0, fat: 0 });
 });
+
+test("dayBuckets returns one entry per day including empty days", () => {
+  const now = new Date("2026-07-17T12:00:00").getTime();
+  const rows = [{ ts: now, kcal: 100 }, { ts: now - 2 * DAY, kcal: 50 }];
+  const b = T.dayBuckets(rows, "week", now);
+  assert.strictEqual(b.length, 7);
+  assert.strictEqual(b[6].kcal, 100);   // today is last
+  assert.strictEqual(b[4].kcal, 50);
+  assert.strictEqual(b[5].kcal, 0);     // empty day is a zero bar, not a gap
+  assert.ok(typeof b[0].label === "string");
+});
+
+test("mostEaten counts and sums per food, sorted by count", () => {
+  const rows = [
+    { food: "pizza", kcal: 300 },
+    { food: "pizza", kcal: 200 },
+    { food: "apple", kcal: 50 },
+  ];
+  const m = T.mostEaten(rows, 5);
+  assert.strictEqual(m[0].food, "pizza");
+  assert.strictEqual(m[0].count, 2);
+  assert.strictEqual(m[0].kcal, 500);
+  assert.strictEqual(m[1].food, "apple");
+});
+
+test("mostEaten respects the limit", () => {
+  const rows = [{ food: "a" }, { food: "b" }, { food: "c" }];
+  assert.strictEqual(T.mostEaten(rows, 2).length, 2);
+});
