@@ -219,6 +219,7 @@
     <div id="histList" style="margin-top:10px;font-size:14px"></div>
       <canvas id="histChart" height="120" style="margin-top:10px"></canvas>
       <div id="histTop" style="margin-top:10px;font-size:13px"></div>
+      <div id="histMicros" style="margin-top:8px"></div>
     <div style="display:flex;gap:10px;margin-top:10px">
       <button class="mini" id="histCsv">export CSV</button>
       <button class="mini" id="histClear">clear</button>
@@ -705,6 +706,12 @@ function renderHistory(){
     ? '<div class="muted" style="margin-bottom:4px">Most eaten</div>'+top.map(m=>
         `<div class="logrow"><div class="lh"><span class="lf">${esc(m.food).replace(/_/g,' ')}
          <span class="lsub">x${m.count}</span></span><span class="lk">${Math.round(m.kcal)} kcal</span></div></div>`).join('')
+    : '';
+  const sm=CZTrack.sumMicros(rows), mk=Object.keys(sm);
+  $("histMicros").innerHTML = mk.length
+    ? '<div class="muted" style="margin-bottom:4px">Vitamins and minerals this period</div>'+
+      '<div style="display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px" class="muted">'+
+      mk.map(k=>`<span>${MICRO_LABEL[k]||k}: <b style="color:var(--ink)">${sm[k]}</b></span>`).join('')+'</div>'
     : '';
   const title={today:'Today',week:'Last 7 days',month:'Last 30 days'}[PERIOD];
   $("histTitle").textContent=title;
