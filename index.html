@@ -204,6 +204,12 @@
     </div>
   </div>
 
+  <button class="chip" id="foodsBtn" style="margin-bottom:6px">I know 145 foods</button>
+  <div class="result" id="foodsCard" style="display:none">
+    <input id="foodSearch" placeholder="search a food..." style="width:100%;margin-bottom:6px">
+    <div id="foodList" style="max-height:240px;overflow:auto;font-size:13px"></div>
+  </div>
+
   <div class="result show" id="greetCard" style="display:none">
     <div class="lh"><span class="lf" id="greetText">Hello</span>
       <button class="chip" id="profBtn">profile</button></div>
@@ -803,6 +809,26 @@ $("pfSave").onclick=()=>{
   saveProfile(PROFILE); $("profForm").style.display='none'; renderGreeting(); renderHistory();
 };
 renderGreeting();
+function allFoods(){
+  const g=Object.values(namesG||{}).map(n=>({n, grp:'Global'}));
+  const i=Object.values(namesI||{}).filter(n=>n!=='background').map(n=>({n, grp:'Israeli'}));
+  return g.concat(i).sort((a,b)=>a.n.localeCompare(b.n));
+}
+function renderFoods(){
+  const q=($("foodSearch").value||'').toLowerCase().replace(/\s+/g,'_');
+  const list=allFoods().filter(f=>!q || f.n.includes(q));
+  $("foodsBtn").textContent=`I know ${allFoods().length} foods`;
+  $("foodList").innerHTML = list.length ? list.map(f=>{
+    const off = NUTR && NUTR[f.n] ? '<span class="chip" style="background:#123a2a;color:#46c98d">offline</span>' : '';
+    return `<div class="logrow"><div class="lh"><span class="lf">${f.n.replace(/_/g,' ')}
+      <span class="lsub">${f.grp}</span></span>${off}</div></div>`;
+  }).join('') : '<span class="chip">no match</span>';
+}
+$("foodsBtn").onclick=()=>{
+  const c=$("foodsCard"); c.style.display = c.style.display==='none' ? '' : 'none';
+  if(c.style.display==='') renderFoods();
+};
+$("foodSearch").oninput=renderFoods;
 $("logBtn").onclick=logMeal;
 $("askGemini").onclick=()=>applyGemini().catch(e=>{$("status").textContent='Gemini err';});
 updSound();
