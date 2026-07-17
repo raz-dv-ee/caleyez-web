@@ -208,6 +208,7 @@
       <div id="histAvg" class="muted" style="margin-top:6px;font-size:12px"></div>
     <div id="histList" style="margin-top:10px;font-size:14px"></div>
       <canvas id="histChart" height="120" style="margin-top:10px"></canvas>
+      <div id="histTop" style="margin-top:10px;font-size:13px"></div>
     <div style="display:flex;gap:10px;margin-top:10px">
       <button class="mini" id="histCsv">export CSV</button>
       <button class="mini" id="histClear">clear</button>
@@ -666,6 +667,12 @@ function renderHistory(){
   const rows=CZTrack.filterPeriod(all, PERIOD, now);
   const t=CZTrack.totals(rows);
   renderChart(CZTrack.dayBuckets(rows, PERIOD, now));
+  const top=CZTrack.mostEaten(rows,5);
+  $("histTop").innerHTML = top.length
+    ? '<div class="muted" style="margin-bottom:4px">Most eaten</div>'+top.map(m=>
+        `<div class="logrow"><div class="lh"><span class="lf">${m.food.replace(/_/g,' ')}
+         <span class="lsub">x${m.count}</span></span><span class="lk">${Math.round(m.kcal)} kcal</span></div></div>`).join('')
+    : '';
   const title={today:'Today',week:'Last 7 days',month:'Last 30 days'}[PERIOD];
   $("histTitle").textContent=title;
   $("histTotal").textContent='🔥 '+t.kcal+' kcal';
