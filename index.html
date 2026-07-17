@@ -246,6 +246,9 @@
       <div id="histMicros" style="margin-top:8px"></div>
     <div style="display:flex;gap:10px;margin-top:10px">
       <button class="mini" id="histCsv">export CSV</button>
+      <label class="mini" style="cursor:pointer">import CSV
+        <input id="csvImport" type="file" accept=".csv,text/csv" style="display:none">
+      </label>
       <button class="mini" id="histClear">clear</button>
     </div>
   </div>
@@ -835,11 +838,26 @@ updSound();
 $("soundBtn").onclick=()=>{ SOUND=!SOUND; localStorage.setItem('caleyez_sound',SOUND?'on':'off'); updSound(); if(SOUND){ audio(); sfxReady(); } };
 $("histClear").onclick=()=>{ if(confirm('Clear all logged meals?')){saveLog([]);renderHistory();} };
 $("histCsv").onclick=()=>{
-  const a=loadLog(); if(!a.length)return;
-  const head='datetime,food,sub,method,grams,expert,kcal,protein,carb,fat';
-  const rows=a.map(r=>[new Date(r.ts).toISOString(),r.food,r.sub||'',r.method||'',r.grams,r.expert,r.kcal,r.pro,r.carb,r.fat].join(','));
-  const blob=new Blob([head+'\n'+rows.join('\n')],{type:'text/csv'});
-  const u=URL.createObjectURL(blob),link=document.createElement('a');link.href=u;link.download='caleyez_log.csv';link.click();
+  const rows=loadLog(); if(!rows.length){ alert('Nothing to export yet.'); return; }
+  const blob=new Blob([CZTrack.toCSV(rows)], {type:'text/csv'});   // round-trippable with the importer below
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='caleyez-log-'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+};
+$("csvImport").onchange=async(e)=>{
+  const f=e.target.files && e.target.files[0]; if(!f) return;
+  try{
+    // Drop rows whose ts did not parse, and null out any NaN numeric so one corrupt cell cannot poison totals.
+    const clean=CZTrack.fromCSV(await f.text()).filter(r=>typeof r.ts==='number' && !Number.isNaN(r.ts)).map(r=>{
+      ['grams','kcal','pro','carb','fat'].forEach(k=>{ if(typeof r[k]==='number' && Number.isNaN(r[k])) r[k]=null; });
+      return r;
+    });
+    const merged=CZTrack.mergeRows(loadLog(), clean);
+    saveLog(merged); renderHistory();
+    alert('Imported. Log now has '+merged.length+' entries.');
+  }catch(err){ alert('Could not read that CSV.'); }
+  e.target.value='';
 };
 
 boot();
