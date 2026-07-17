@@ -110,6 +110,71 @@
   .logrow .lm{display:flex;gap:14px;margin-top:6px;font-size:12px;color:var(--mut)}
   .logrow .lm i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;vertical-align:middle}
   #histTotal{font-weight:700;color:var(--accent)}
+
+  /* ---------- premium polish layer ---------- */
+  html,body{background:
+    radial-gradient(120% 80% at 50% -10%, #10202b 0%, transparent 55%),
+    radial-gradient(90% 60% at 100% 0%, rgba(36,160,107,.08) 0%, transparent 50%),
+    var(--bg)}
+  .result{
+    background:linear-gradient(180deg, #182230 0%, var(--panel) 60%);
+    border:1px solid var(--line);
+    box-shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 12px 30px -18px rgba(0,0,0,.9);
+  }
+  .result.show{animation:cardin .45s cubic-bezier(.2,.8,.2,1)}
+  @keyframes cardin{from{opacity:0;transform:translateY(10px) scale(.99)}to{opacity:1;transform:none}}
+  .chip{transition:opacity .18s ease, border-color .18s ease, background .18s ease, transform .12s ease}
+  .chip:hover{border-color:rgba(36,160,107,.5)}
+  .chip:active{transform:scale(.94)}
+  .mini{transition:border-color .18s ease, background .18s ease, transform .12s ease}
+  .mini:hover{border-color:rgba(88,166,255,.45);color:var(--ink)}
+  .mini:active{transform:scale(.96)}
+  .btn{transition:transform .12s ease, box-shadow .2s ease, filter .2s ease;
+    box-shadow:0 8px 22px -12px rgba(36,160,107,.8)}
+  .btn:hover{filter:brightness(1.06)}
+  .btn:active{transform:translateY(1px) scale(.995)}
+  input,select{transition:border-color .18s ease, box-shadow .18s ease, background .18s ease}
+  input:focus,select:focus{outline:none;border-color:var(--accent);
+    box-shadow:0 0 0 3px rgba(36,160,107,.18)}
+  #greetCard{background:
+    linear-gradient(135deg, rgba(36,160,107,.16), rgba(88,166,255,.06) 55%, var(--panel) 100%);
+    border-color:rgba(36,160,107,.28)}
+  #greetText b{color:#eafff5}
+  .shake{animation:shake .4s ease}
+  @keyframes shake{0%,100%{transform:none}20%,60%{transform:translateX(-5px)}40%,80%{transform:translateX(5px)}}
+
+  /* ---------- onboarding / welcome ---------- */
+  #welcome{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:20px;
+    background:radial-gradient(120% 90% at 50% 20%,#0f1c26 0%,#0a0e14 58%,#070a0f 100%);
+    overflow:auto}
+  #welcome.in{display:flex}
+  .wcard{width:100%;max-width:420px;background:linear-gradient(180deg,#18232f,#131a24);
+    border:1px solid var(--line);border-radius:22px;padding:26px 22px 22px;
+    box-shadow:0 30px 80px -30px rgba(0,0,0,.95), 0 1px 0 rgba(255,255,255,.04) inset;
+    transform:translateY(14px);opacity:0}
+  #welcome.in .wcard{animation:wcardin .5s .05s cubic-bezier(.2,.8,.2,1) forwards}
+  @keyframes wcardin{to{transform:none;opacity:1}}
+  .weyebadge{width:66px;height:66px;border-radius:18px;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(circle at 50% 40%,#1b3348,#101a24);border:1px solid rgba(36,160,107,.35);
+    box-shadow:0 0 26px -6px rgba(36,160,107,.45);margin-bottom:14px}
+  .wtitle{font-family:'Chakra Petch',var(--brandfb);font-weight:700;letter-spacing:1px;font-size:23px;margin:0 0 6px;
+    background:linear-gradient(180deg,#e7fff2,#46c98d);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .wlede{color:var(--mut);font-size:13.5px;line-height:1.5;margin:0 0 20px}
+  .wfield{margin-bottom:13px}
+  .wfield>label,.wfield>div>label{display:block;font-size:11px;letter-spacing:.6px;text-transform:uppercase;
+    color:var(--mut);margin-bottom:5px}
+  .wfield input,.wfield select{width:100%;background:var(--panel);border:1px solid var(--line);color:var(--ink);
+    border-radius:12px;padding:13px;font-size:16px}
+  .wsplit{display:flex;gap:12px}.wsplit>div{flex:1;min-width:0}
+  .wstart{margin-top:8px;font-size:16px}
+  .wskip{display:block;width:100%;margin-top:12px;background:none;border:0;color:var(--mut);font-size:13px;
+    cursor:pointer;padding:6px;text-decoration:underline;text-underline-offset:3px}
+  .wskip:hover{color:var(--ink)}
+  /* staggered field reveal */
+  #welcome.in .wfield,#welcome.in .wstart,#welcome.in .wskip,#welcome.in .wtitle,#welcome.in .wlede,#welcome.in .weyebadge{
+    opacity:0;transform:translateY(8px);animation:wfield .45s cubic-bezier(.2,.8,.2,1) forwards;
+    animation-delay:calc(.12s + var(--d,0) * .07s)}
+  @keyframes wfield{to{opacity:1;transform:none}}
 </style>
 
 <div id="splash">
@@ -146,6 +211,49 @@
   <div class="t" id="splashText">initializing optics…</div>
   <div id="loadbar"><div id="loadfill"></div></div>
   <div class="t" id="loadpct" style="letter-spacing:2px;font-size:11px"></div>
+</div>
+
+<div id="welcome" aria-hidden="true">
+  <div class="wcard">
+    <div class="weyebadge">
+      <svg viewBox="0 0 68 58" width="40" height="34" aria-hidden="true">
+        <path d="M6 29 Q34 6 62 29" fill="none" stroke="#3fce8f" stroke-width="4.5" stroke-linecap="round"/>
+        <path d="M8 29 Q34 46 60 29" fill="none" stroke="#3fce8f" stroke-width="3.2" stroke-linecap="round"/>
+        <circle cx="34" cy="29" r="8.5" fill="#143a63" stroke="#46c98d" stroke-width="3"/>
+        <circle cx="37" cy="26" r="1.6" fill="#eafff5"/>
+      </svg>
+    </div>
+    <h2 class="wtitle">Welcome to CalEyeZ</h2>
+    <p class="wlede">Point, shoot, and know what you eat. First, a few basics so we can track calories in vs out for you.</p>
+    <div class="wfield" style="--d:1">
+      <label for="wName">What should we call you?</label>
+      <input id="wName" placeholder="your name" autocomplete="given-name">
+    </div>
+    <div class="wfield wsplit" style="--d:2">
+      <div><label for="wSex">sex</label>
+        <select id="wSex"><option value="m">male</option><option value="f">female</option></select></div>
+      <div><label for="wAge">age</label>
+        <input id="wAge" type="number" inputmode="numeric" placeholder="24"></div>
+    </div>
+    <div class="wfield wsplit" style="--d:3">
+      <div><label for="wH">height (cm)</label>
+        <input id="wH" type="number" inputmode="numeric" placeholder="178"></div>
+      <div><label for="wW">weight (kg)</label>
+        <input id="wW" type="number" inputmode="numeric" placeholder="74"></div>
+    </div>
+    <div class="wfield" style="--d:4">
+      <label for="wAct">daily activity</label>
+      <select id="wAct">
+        <option value="1.2">sedentary - little exercise</option>
+        <option value="1.375">light - 1 to 3 days/week</option>
+        <option value="1.55" selected>moderate - 3 to 5 days/week</option>
+        <option value="1.725">very active - 6 to 7 days/week</option>
+        <option value="1.9">extra active - hard training</option>
+      </select>
+    </div>
+    <button class="btn wstart" id="wStart" style="--d:5">Start tracking</button>
+    <button class="wskip" id="wSkip" style="--d:6">skip for now</button>
+  </div>
 </div>
 
 <div id="app">
@@ -426,6 +534,7 @@ async function boot(){
     await warmup();                                    // compile kernels now so first photo is fast
     await startCam();
     $("splash").style.display='none';
+    if(!PROFILE) showWelcome();                        // first run only; skip/save both leave a PROFILE object
     $("analyze").disabled=false; $("status").textContent='ready';
   }catch(e){ $("splashText").textContent="error: "+e.message; }
 }
@@ -714,14 +823,40 @@ function logMeal(){
   setTimeout(()=>{$("logBtn").textContent='＋ Log meal';$("logBtn").classList.remove('pulse');},1200);
 }
 let histChart=null;
+// protein / carbs / fat stacked, colours matched to the log-row macro dots below.
+const MACRO_SET=[
+  {key:'pro',  label:'protein', color:'#58a6ff'},
+  {key:'carb', label:'carbs',   color:'#d29922'},
+  {key:'fat',  label:'fat',     color:'#46c98d'}
+];
 function renderChart(buckets){
   const el=$("histChart"); if(!el || typeof Chart==='undefined') return;
-  const data={labels:buckets.map(b=>b.label),
-    datasets:[{data:buckets.map(b=>Math.round(b.kcal)), backgroundColor:'#46c98d', borderRadius:4}]};
-  const opts={responsive:true, plugins:{legend:{display:false}},
-    scales:{x:{grid:{display:false},ticks:{color:'#8b949e',font:{size:10}}},
-            y:{beginAtZero:true,grid:{color:'#222b36'},ticks:{color:'#8b949e',font:{size:10}}}}};
-  if(histChart){ histChart.data=data; histChart.update(); return; }
+  const data={
+    labels:buckets.map(b=>b.label),
+    datasets:MACRO_SET.map(m=>({
+      label:m.label,
+      data:buckets.map(b=>+(b[m.key]||0).toFixed(1)),
+      backgroundColor:m.color, borderRadius:3, borderSkipped:false,
+      stack:'macros', maxBarThickness:36
+    }))
+  };
+  const opts={
+    responsive:true, animation:{duration:450},
+    plugins:{
+      legend:{display:true, position:'bottom',
+        labels:{color:'#c9d4e0', usePointStyle:true, pointStyle:'rectRounded',
+          boxWidth:9, boxHeight:9, padding:14, font:{size:11}}},
+      tooltip:{
+        callbacks:{footer:items=>'total '+Math.round(buckets[items[0].dataIndex].kcal)+' kcal'}
+      }
+    },
+    scales:{
+      x:{stacked:true, grid:{display:false}, ticks:{color:'#8b949e', font:{size:10}}},
+      y:{stacked:true, beginAtZero:true, grid:{color:'#222b36'},
+        ticks:{color:'#8b949e', font:{size:10}, callback:v=>v+'g'}}
+    }
+  };
+  if(histChart){ histChart.data=data; histChart.options=opts; histChart.update(); return; }
   histChart=new Chart(el.getContext('2d'), {type:'bar', data, options:opts});
 }
 function renderHistory(){
@@ -812,6 +947,19 @@ $("pfSave").onclick=()=>{
   saveProfile(PROFILE); $("profForm").style.display='none'; renderGreeting(); renderHistory();
 };
 renderGreeting();
+
+// First-run onboarding: collect name + body basics before the app is used.
+function showWelcome(){ $("welcome").classList.add('in'); $("welcome").setAttribute('aria-hidden','false'); setTimeout(()=>$("wName").focus(),450); }
+function hideWelcome(){ const w=$("welcome"); w.classList.remove('in'); w.setAttribute('aria-hidden','true'); }
+$("wStart").onclick=()=>{
+  const name=($("wName").value||'').trim();
+  if(!name){ $("wName").classList.add('shake'); setTimeout(()=>$("wName").classList.remove('shake'),420); $("wName").focus(); return; }
+  const nn=v=>Math.max(0,+v||0);
+  PROFILE={name, sex:$("wSex").value, age:nn($("wAge").value), heightCm:nn($("wH").value),
+    weightKg:nn($("wW").value), activity:+$("wAct").value||1.55};
+  saveProfile(PROFILE); hideWelcome(); renderGreeting(); renderHistory();
+};
+$("wSkip").onclick=()=>{ saveProfile(PROFILE||{name:''}); hideWelcome(); };  // remember they were asked; do not nag every load
 function allFoods(){
   const g=Object.values(namesG||{}).map(n=>({n, grp:'Global'}));
   const i=Object.values(namesI||{}).filter(n=>n!=='background').map(n=>({n, grp:'Israeli'}));
