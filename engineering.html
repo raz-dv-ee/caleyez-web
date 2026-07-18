@@ -205,7 +205,7 @@
       <div class="stat-tile"><b>2+1</b><span>CNN experts + a learned arbiter</span></div>
       <div class="stat-tile acc"><b>88.2%</b><span>global test accuracy<br>leakage-free split</span></div>
       <div class="stat-tile acc"><b>86.2%</b><span>full-system top-1<br>+8.8 pts over baseline</span></div>
-      <div class="stat-tile blue"><b>~150 ms</b><span>end-to-end, on-device<br>no cloud in the loop</span></div>
+      <div class="stat-tile blue"><b>&lt;1 s</b><span>on-device recognition<br>2 CNNs + arbiter, timed live</span></div>
       <div class="stat-tile"><b>20</b><span>XGBoost arbiter features</span></div>
       <div class="stat-tile blue"><b>fp16</b><span>ONNX, torch-free<br>runs in the browser</span></div>
       <div class="stat-tile acc"><b>100%</b><span>offline recognition<br>models cached on-device</span></div>
@@ -218,6 +218,7 @@
       <span class="hl"><b>USDA</b> smart-filter nutrition</span>
       <span class="hl">pure-logic lib, <b>27 unit tests</b></span>
     </div>
+    <div class="hero-foot" style="margin-top:11px">Timing, honestly: the <b style="color:var(--lgreen)">recognition</b> (preprocess + both CNNs + arbiter) runs entirely on the phone and is timed live on every capture (the chip shows the real ms for your device, well under a second). The <b style="color:var(--blue)">nutrition lookup</b> that follows is a separate call over the network (about a second via the USDA Worker), so a full capture-to-calories flow is roughly 1 to 1.5 s, most of it that network round-trip, not the models.</div>
   </div>
 
   <div id="out">
