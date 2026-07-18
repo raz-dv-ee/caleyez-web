@@ -928,36 +928,45 @@ function setChartMode(m){
   ['MACROS','ENERGY'].forEach(k=>{ const b=$("cm"+k); if(b) b.classList.toggle('on', k.toLowerCase()===m); });
   renderHistory();
 }
-const LEGEND={color:'#c9d4e0', usePointStyle:true, pointStyle:'rectRounded', boxWidth:9, boxHeight:9, padding:14, font:{size:11}};
+const CH_LEGEND={color:'#c9d4e0', usePointStyle:true, pointStyle:'circle', boxWidth:8, boxHeight:8, padding:16, font:{size:11}};
+const CH_TIP={backgroundColor:'#0d141d', borderColor:'#2a3440', borderWidth:1, titleColor:'#eaf1f8',
+  bodyColor:'#c9d4e0', padding:10, cornerRadius:9, boxPadding:4, usePointStyle:true};
 function renderChart(buckets){
   const el=$("histChart"); if(!el || typeof Chart==='undefined') return;
+  const ctx=el.getContext('2d');
+  const grad=hex=>{ const g=ctx.createLinearGradient(0,0,0,205); g.addColorStop(0,hex); g.addColorStop(1,hex+'33'); return g; };
+  const scales=yUnit=>({
+    x:{grid:{display:false}, border:{display:false}, ticks:{color:'#8b98a8', font:{size:10}}},
+    y:{beginAtZero:true, border:{display:false}, grid:{color:'rgba(255,255,255,.05)'},
+       ticks:{color:'#8b98a8', font:{size:10}, maxTicksLimit:5, padding:6, callback:v=>v+yUnit}}
+  });
+  const baseOpts=(sc,footer)=>({responsive:true, animation:{duration:700, easing:'easeOutQuart'},
+    layout:{padding:{top:6}},
+    plugins:{legend:{position:'bottom', labels:CH_LEGEND}, tooltip:{...CH_TIP, callbacks:{footer}}},
+    scales:sc});
   let data, opts;
   if(CHART_MODE==='energy'){
     const out=CZTrack.tdee(PROFILE||{});                 // per-day burn (null without a profile)
     const inData=buckets.map(b=>Math.round(b.kcal));
-    const barCol=inData.map(v=> out && v>out ? '#e0a33a' : '#46c98d');   // over budget = amber, under = green
-    const ds=[{type:'bar', label:'eaten (in)', data:inData, backgroundColor:barCol, borderRadius:3, borderSkipped:false, maxBarThickness:34, order:2}];
-    if(out) ds.push({type:'line', label:'burned / TDEE (out)', data:buckets.map(()=>out), borderColor:'#58a6ff',
-      borderWidth:2, borderDash:[5,4], pointRadius:0, fill:false, order:1, tension:0});
+    const barCol=inData.map(v=> out && v>out ? grad('#e0a33a') : grad('#46c98d'));   // over budget = amber, under = green
+    const ds=[{type:'bar', label:'eaten (in)', data:inData, backgroundColor:barCol, borderRadius:6, borderSkipped:false, maxBarThickness:30, order:2}];
+    if(out){
+      const lg=ctx.createLinearGradient(0,0,0,205); lg.addColorStop(0,'#58a6ff40'); lg.addColorStop(1,'#58a6ff00');
+      ds.push({type:'line', label:'burned / TDEE (out)', data:buckets.map(()=>out), borderColor:'#58a6ff',
+        borderWidth:2, borderDash:[6,5], pointRadius:0, fill:true, backgroundColor:lg, order:1, tension:0});
+    }
     data={labels:buckets.map(b=>b.label), datasets:ds};
-    opts={responsive:true, animation:{duration:450},
-      plugins:{legend:{display:true, position:'bottom', labels:LEGEND},
-        tooltip:{callbacks:{footer:items=>{ if(!out) return ''; const net=Math.round(buckets[items[0].dataIndex].kcal)-out;
-          return (net>0?'surplus +':'deficit ')+net+' kcal'; }}}},
-      scales:{x:{grid:{display:false}, ticks:{color:'#8b949e', font:{size:10}}},
-        y:{beginAtZero:true, grid:{color:'#222b36'}, ticks:{color:'#8b949e', font:{size:10}, callback:v=>v+''}}}};
+    opts=baseOpts(scales(''), items=>{ if(!out) return ''; const net=Math.round(buckets[items[0].dataIndex].kcal)-out;
+      return (net>0?'surplus +':'deficit ')+net+' kcal'; });
   }else{
     data={labels:buckets.map(b=>b.label),
       datasets:MACRO_SET.map(m=>({label:m.label, data:buckets.map(b=>+(b[m.key]||0).toFixed(1)),
-        backgroundColor:m.color, borderRadius:3, borderSkipped:false, stack:'macros', maxBarThickness:36}))};
-    opts={responsive:true, animation:{duration:450},
-      plugins:{legend:{display:true, position:'bottom', labels:LEGEND},
-        tooltip:{callbacks:{footer:items=>'total '+Math.round(buckets[items[0].dataIndex].kcal)+' kcal'}}},
-      scales:{x:{stacked:true, grid:{display:false}, ticks:{color:'#8b949e', font:{size:10}}},
-        y:{stacked:true, beginAtZero:true, grid:{color:'#222b36'}, ticks:{color:'#8b949e', font:{size:10}, callback:v=>v+'g'}}}};
+        backgroundColor:grad(m.color), borderRadius:5, borderSkipped:false, stack:'macros', maxBarThickness:32}))};
+    const sc=scales('g'); sc.x.stacked=true; sc.y.stacked=true;
+    opts=baseOpts(sc, items=>'total '+Math.round(buckets[items[0].dataIndex].kcal)+' kcal');
   }
   if(histChart){ histChart.destroy(); histChart=null; }   // modes differ in type (stacked bar vs bar+line) - recreate
-  histChart=new Chart(el.getContext('2d'), {type:'bar', data, options:opts});
+  histChart=new Chart(ctx, {type:'bar', data, options:opts});
 }
 function renderHistory(){
   const all=loadLog();
