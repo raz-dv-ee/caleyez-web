@@ -108,6 +108,16 @@
   .reveal{opacity:0;animation:revealup .5s cubic-bezier(.2,.8,.2,1) forwards;animation-delay:calc(var(--ri,0) * .09s)}
   #rFood.pop{animation:foodpop .5s cubic-bezier(.2,.9,.2,1)}
   @keyframes foodpop{0%{opacity:0;transform:scale(.9) translateY(6px)}60%{transform:scale(1.02)}100%{opacity:1;transform:none}}
+  /* ---------- energy balance (in / out / net) ---------- */
+  .balance{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+  .balance .bc{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 8px;text-align:center;position:relative;overflow:hidden}
+  .balance .bc::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--bar,var(--mut));opacity:.7}
+  .balance .bk{font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:var(--mut)}
+  .balance .bv{font:800 20px/1.1 system-ui,'Segoe UI',sans-serif;margin-top:4px;font-variant-numeric:tabular-nums}
+  .balance .bv small{font-size:11px;color:var(--mut);font-weight:600}
+  .chart-toggle{display:flex;gap:6px;justify-content:center;margin-top:12px}
+  .chart-toggle .chip{cursor:pointer}
+  .chart-toggle .chip.on{color:#04121a;background:var(--accent);border-color:var(--accent);font-weight:700}
   .foot{font-size:11px;color:var(--mut);text-align:center;margin-top:auto;padding-top:6px}
   #splash{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;
     justify-content:center;gap:16px;z-index:50}
@@ -388,8 +398,13 @@
     </div>
     <div class="macros" id="histMacros" style="margin-top:10px"></div>
       <div id="histAvg" class="muted" style="margin-top:6px;font-size:12px"></div>
+    <div id="histBalance" class="balance"></div>
     <div id="histList" style="margin-top:10px;font-size:14px"></div>
-      <canvas id="histChart" height="120" style="margin-top:10px"></canvas>
+      <div class="chart-toggle">
+        <button class="chip on" id="cmMACROS" onclick="setChartMode('macros')">Macros</button>
+        <button class="chip" id="cmENERGY" onclick="setChartMode('energy')">In vs Out</button>
+      </div>
+      <canvas id="histChart" height="120" style="margin-top:8px"></canvas>
       <div id="histTop" style="margin-top:10px;font-size:13px"></div>
       <div id="histMicros" style="margin-top:8px"></div>
     <div style="display:flex;gap:10px;margin-top:10px">
@@ -907,34 +922,41 @@ const MACRO_SET=[
   {key:'carb', label:'carbs',   color:'#d29922'},
   {key:'fat',  label:'fat',     color:'#46c98d'}
 ];
+let CHART_MODE='macros';   // 'macros' | 'energy'
+function setChartMode(m){
+  CHART_MODE=m;
+  ['MACROS','ENERGY'].forEach(k=>{ const b=$("cm"+k); if(b) b.classList.toggle('on', k.toLowerCase()===m); });
+  renderHistory();
+}
+const LEGEND={color:'#c9d4e0', usePointStyle:true, pointStyle:'rectRounded', boxWidth:9, boxHeight:9, padding:14, font:{size:11}};
 function renderChart(buckets){
   const el=$("histChart"); if(!el || typeof Chart==='undefined') return;
-  const data={
-    labels:buckets.map(b=>b.label),
-    datasets:MACRO_SET.map(m=>({
-      label:m.label,
-      data:buckets.map(b=>+(b[m.key]||0).toFixed(1)),
-      backgroundColor:m.color, borderRadius:3, borderSkipped:false,
-      stack:'macros', maxBarThickness:36
-    }))
-  };
-  const opts={
-    responsive:true, animation:{duration:450},
-    plugins:{
-      legend:{display:true, position:'bottom',
-        labels:{color:'#c9d4e0', usePointStyle:true, pointStyle:'rectRounded',
-          boxWidth:9, boxHeight:9, padding:14, font:{size:11}}},
-      tooltip:{
-        callbacks:{footer:items=>'total '+Math.round(buckets[items[0].dataIndex].kcal)+' kcal'}
-      }
-    },
-    scales:{
-      x:{stacked:true, grid:{display:false}, ticks:{color:'#8b949e', font:{size:10}}},
-      y:{stacked:true, beginAtZero:true, grid:{color:'#222b36'},
-        ticks:{color:'#8b949e', font:{size:10}, callback:v=>v+'g'}}
-    }
-  };
-  if(histChart){ histChart.data=data; histChart.options=opts; histChart.update(); return; }
+  let data, opts;
+  if(CHART_MODE==='energy'){
+    const out=CZTrack.tdee(PROFILE||{});                 // per-day burn (null without a profile)
+    const inData=buckets.map(b=>Math.round(b.kcal));
+    const barCol=inData.map(v=> out && v>out ? '#e0a33a' : '#46c98d');   // over budget = amber, under = green
+    const ds=[{type:'bar', label:'eaten (in)', data:inData, backgroundColor:barCol, borderRadius:3, borderSkipped:false, maxBarThickness:34, order:2}];
+    if(out) ds.push({type:'line', label:'burned / TDEE (out)', data:buckets.map(()=>out), borderColor:'#58a6ff',
+      borderWidth:2, borderDash:[5,4], pointRadius:0, fill:false, order:1, tension:0});
+    data={labels:buckets.map(b=>b.label), datasets:ds};
+    opts={responsive:true, animation:{duration:450},
+      plugins:{legend:{display:true, position:'bottom', labels:LEGEND},
+        tooltip:{callbacks:{footer:items=>{ if(!out) return ''; const net=Math.round(buckets[items[0].dataIndex].kcal)-out;
+          return (net>0?'surplus +':'deficit ')+net+' kcal'; }}}},
+      scales:{x:{grid:{display:false}, ticks:{color:'#8b949e', font:{size:10}}},
+        y:{beginAtZero:true, grid:{color:'#222b36'}, ticks:{color:'#8b949e', font:{size:10}, callback:v=>v+''}}}};
+  }else{
+    data={labels:buckets.map(b=>b.label),
+      datasets:MACRO_SET.map(m=>({label:m.label, data:buckets.map(b=>+(b[m.key]||0).toFixed(1)),
+        backgroundColor:m.color, borderRadius:3, borderSkipped:false, stack:'macros', maxBarThickness:36}))};
+    opts={responsive:true, animation:{duration:450},
+      plugins:{legend:{display:true, position:'bottom', labels:LEGEND},
+        tooltip:{callbacks:{footer:items=>'total '+Math.round(buckets[items[0].dataIndex].kcal)+' kcal'}}},
+      scales:{x:{stacked:true, grid:{display:false}, ticks:{color:'#8b949e', font:{size:10}}},
+        y:{stacked:true, beginAtZero:true, grid:{color:'#222b36'}, ticks:{color:'#8b949e', font:{size:10}, callback:v=>v+'g'}}}};
+  }
+  if(histChart){ histChart.destroy(); histChart=null; }   // modes differ in type (stacked bar vs bar+line) - recreate
   histChart=new Chart(el.getContext('2d'), {type:'bar', data, options:opts});
 }
 function renderHistory(){
@@ -963,15 +985,21 @@ function renderHistory(){
     const b=$("p"+k); if(b) b.style.opacity = (k.toLowerCase()===PERIOD)?'1':'.45';
   });
   const t2=CZTrack.tdee(PROFILE||{});
-  let hsub='';
-  if(t2){
-    const days={today:1,week:7,month:30}[PERIOD];
-    const burned=t2*days, net=t.kcal-burned;
-    hsub=`burned ~${burned} · net ${net>0?'+':''}${net} kcal`;
-  }
+  const days={today:1,week:7,month:30}[PERIOD];
   $("histTotal").textContent='';                                   // the big number now lives in the hero ring
-  $("histMacros").innerHTML=heroRing({kcal:t.kcal, pro:t.pro, carb:t.carb, fat:t.fat, sub:hsub});
+  $("histMacros").innerHTML=heroRing({kcal:t.kcal, pro:t.pro, carb:t.carb, fat:t.fat, sub:''});
   animateHeroRing($("histMacros"));
+  // energy balance: total in / out / net for the period
+  if(t2){
+    const tin=t.kcal, tout=t2*days, net=tin-tout, over=net>0;
+    const netc=over?'#e0a33a':'#46c98d';
+    $("histBalance").innerHTML=
+      `<div class="bc" style="--bar:#46c98d"><div class="bk">total in</div><div class="bv" style="color:#46c98d">${tin}<small> kcal</small></div></div>`+
+      `<div class="bc" style="--bar:#58a6ff"><div class="bk">total out</div><div class="bv" style="color:#58a6ff">${tout}<small> kcal</small></div></div>`+
+      `<div class="bc" style="--bar:${netc}"><div class="bk">net ${over?'surplus':'deficit'}</div><div class="bv" style="color:${netc}">${over?'+':''}${net}<small> kcal</small></div></div>`;
+  } else {
+    $("histBalance").innerHTML=`<div class="bc" style="grid-column:1/-1;--bar:#46c98d"><div class="bk">total in</div><div class="bv" style="color:#46c98d">${t.kcal}<small> kcal</small></div><div class="bk" style="margin-top:6px;text-transform:none">add your profile to see calories out and net</div></div>`;
+  }
   const nDays={today:1,week:7,month:30}[PERIOD];
   $("histAvg").textContent = nDays>1
     ? `average per day: ${Math.round(t.kcal/nDays)} kcal · ${(t.pro/nDays).toFixed(1)}g protein · `+
