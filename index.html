@@ -1055,8 +1055,9 @@ function renderFoods(){
   }).join('') : '<span class="chip">no match</span>';
 }
 $("foodsBtn").onclick=()=>{
-  const c=$("foodsCard"); c.style.display = c.style.display==='none' ? '' : 'none';
-  if(c.style.display==='') renderFoods();
+  const c=$("foodsCard"); const open=c.style.display!=='block';   // '.result' CSS is display:none, so open with an explicit block
+  c.style.display = open ? 'block' : 'none';
+  if(open) renderFoods();
 };
 $("foodSearch").oninput=renderFoods;
 $("logBtn").onclick=logMeal;
