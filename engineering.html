@@ -99,6 +99,23 @@
   .hud .val.g{color:var(--blue)} .hud .val.i{color:var(--lgreen)}
   .hud .val.ok{color:var(--lgreen)} .hud .val.warn{color:var(--amber)}
   .hero-foot{font:10px var(--mono);color:var(--mut);margin-top:10px;line-height:1.4}
+  /* clickable pipeline stages */
+  .stg[data-target]{cursor:pointer}
+  .stg[data-target]:hover .dot{border-color:var(--lgreen);box-shadow:0 0 0 1px var(--lgreen),0 0 18px -4px var(--lgreen)}
+  .stg .go{position:absolute;top:-6px;right:8px;font:8px var(--mono);color:var(--lgreen);opacity:0;transition:opacity .2s}
+  .stg[data-target]:hover .go{opacity:.9}
+  /* "by the numbers" achievements */
+  .statgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  @media(max-width:560px){.statgrid{grid-template-columns:repeat(2,1fr)}}
+  .stat-tile{background:linear-gradient(180deg,#131c27,var(--panel2));border:1px solid var(--line);border-radius:10px;
+    padding:11px 10px;position:relative;overflow:hidden}
+  .stat-tile::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--lgreen),transparent);opacity:.55}
+  .stat-tile b{display:block;font:800 22px/1 var(--mono);color:var(--ink);font-variant-numeric:tabular-nums}
+  .stat-tile.acc b{color:var(--lgreen)} .stat-tile.blue b{color:var(--blue)}
+  .stat-tile span{display:block;font:9.5px/1.35 var(--mono);color:var(--mut);margin-top:5px}
+  .hl-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .hl-row .hl{font:9.5px var(--mono);color:var(--mut);border:1px solid var(--line);border-radius:999px;padding:4px 9px}
+  .hl-row .hl b{color:var(--lgreen);font-weight:700}
   .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   @media(max-width:560px){.two{grid-template-columns:1fr}.calgrid{grid-template-columns:1fr !important}}
   .expert{border-top:3px solid var(--blue)} .expert.isr{border-top-color:var(--green)}
@@ -178,26 +195,48 @@
     </div>
     <div class="flow" id="flow"></div>
     <div class="hud" id="hud"></div>
-    <div class="hero-foot">One photo, on-device: two CNNs and a gradient-boosted arbiter, no server in the loop. Capture &amp; trace for live numbers.</div>
+    <div class="hero-foot">One photo, on-device: two CNNs and a gradient-boosted arbiter, no server in the loop. Capture &amp; trace for live numbers. <b style="color:var(--lgreen)">Tap any stage above</b> to jump to how it works.</div>
+  </div>
+
+  <div class="hero" style="margin-top:12px">
+    <div class="hero-head"><span class="hero-title">What was built</span><span class="hero-tag">by the numbers</span></div>
+    <div class="statgrid">
+      <div class="stat-tile"><b>145</b><span>food classes<br>132 global + 13 israeli</span></div>
+      <div class="stat-tile"><b>2+1</b><span>CNN experts + a learned arbiter</span></div>
+      <div class="stat-tile acc"><b>88.2%</b><span>global test accuracy<br>leakage-free split</span></div>
+      <div class="stat-tile acc"><b>86.2%</b><span>full-system top-1<br>+8.8 pts over baseline</span></div>
+      <div class="stat-tile blue"><b>~150 ms</b><span>end-to-end, on-device<br>no cloud in the loop</span></div>
+      <div class="stat-tile"><b>20</b><span>XGBoost arbiter features</span></div>
+      <div class="stat-tile blue"><b>fp16</b><span>ONNX, torch-free<br>runs in the browser</span></div>
+      <div class="stat-tile acc"><b>100%</b><span>offline recognition<br>models cached on-device</span></div>
+    </div>
+    <div class="hl-row">
+      <span class="hl">reverse-engineered <b>BLE scale</b> protocol</span>
+      <span class="hl">ensemble solves <b>catastrophic forgetting</b></span>
+      <span class="hl">leakage-free <b>de-duplicated</b> splits</span>
+      <span class="hl"><b>Gemini vision</b> fallback when unsure</span>
+      <span class="hl"><b>USDA</b> smart-filter nutrition</span>
+      <span class="hl">pure-logic lib, <b>27 unit tests</b></span>
+    </div>
   </div>
 
   <div id="out">
-    <div><h2><span class="n">1</span> Preprocessing · image pipeline</h2>
+    <div id="sec1"><h2><span class="n">1</span> Preprocessing · image pipeline</h2>
       <div class="card"><div class="pipe" id="pipe"></div>
         <div id="prepSteps"></div>
         <div class="muted" style="margin-top:8px">Every step below is classical image processing done in code before the CNN sees a single number - crop, resample, channel split, and normalisation. Identical to the desktop pipeline; verified 0% top-1 mismatch.</div></div></div>
 
-    <div><h2><span class="n">2</span> Expert models</h2>
+    <div id="sec2"><h2><span class="n">2</span> Expert models</h2>
       <div class="two"><div class="card expert" id="cardG"></div><div class="card expert isr" id="cardI"></div></div></div>
 
     <div><h2><span class="n">3</span> Arbiter feature vector (20)</h2>
       <div class="card"><table id="featTable"><thead><tr><th>feature</th><th>value</th></tr></thead><tbody></tbody></table>
       <div class="muted" style="margin-top:6px">Amber = interaction features derived from the base signals.</div></div></div>
 
-    <div><h2><span class="n">4</span> XGBoost arbiter → routing</h2>
+    <div id="sec4"><h2><span class="n">4</span> XGBoost arbiter → routing</h2>
       <div class="card" id="cardArb"></div></div>
 
-    <div><h2><span class="n">5</span> Nutrition lookup</h2>
+    <div id="sec5"><h2><span class="n">5</span> Nutrition lookup</h2>
       <div class="card" id="cardNut"></div>
       <div class="card" style="margin-top:8px">
         <div class="muted"><b>Worked example - how a USDA query is chosen.</b> For a food not in the local DB, the app sends the label to the Worker, which queries USDA and runs the smart filter (reject, then score, then pick the top). The request:</div>
@@ -359,12 +398,12 @@ async function analyze(){
 
 // Hero: the whole on-device pipeline as a flow that lights up stage by stage with real timings.
 const PIPE_STAGES=[
-  {icon:'📷', nm:'Capture',     sub:'ROI crop',    col:'var(--lgreen)', ms:null},
-  {icon:'▦',  nm:'Preprocess',  sub:'320² · /255', col:'var(--lgreen)', ms:'prepMs'},
-  {icon:'🌐', nm:'Global CNN',  sub:'132-class',   col:'var(--blue)',   ms:'gMs'},
-  {icon:'🍽', nm:'Israeli CNN', sub:'13-class',    col:'var(--lgreen)', ms:'iMs'},
-  {icon:'⚖',  nm:'Arbiter',     sub:'XGBoost',     col:'var(--amber)',  ms:'arbMs'},
-  {icon:'🍎', nm:'Nutrition',   sub:'USDA / local',col:'var(--lgreen)', ms:null}
+  {icon:'📷', nm:'Capture',     sub:'ROI crop',    col:'var(--lgreen)', ms:null,     sec:'sec1'},
+  {icon:'▦',  nm:'Preprocess',  sub:'320² · /255', col:'var(--lgreen)', ms:'prepMs', sec:'sec1'},
+  {icon:'🌐', nm:'Global CNN',  sub:'132-class',   col:'var(--blue)',   ms:'gMs',    sec:'sec2'},
+  {icon:'🍽', nm:'Israeli CNN', sub:'13-class',    col:'var(--lgreen)', ms:'iMs',    sec:'sec2'},
+  {icon:'⚖',  nm:'Arbiter',     sub:'XGBoost',     col:'var(--amber)',  ms:'arbMs',  sec:'sec4'},
+  {icon:'🍎', nm:'Nutrition',   sub:'USDA / local',col:'var(--lgreen)', ms:null,     sec:'sec5'}
 ];
 let pipeAnim=null;
 function renderPipeline(t){
@@ -374,8 +413,11 @@ function renderPipeline(t){
   PIPE_STAGES.forEach((s,idx)=>{
     if(idx>0){ const c=document.createElement('div'); c.className='conn'; flow.appendChild(c); }
     const el=document.createElement('div'); el.className='stg'; el.style.setProperty('--nodecol', s.col);
+    if(s.sec){ el.setAttribute('data-target', s.sec);
+      el.onclick=()=>{ const sec=document.getElementById(s.sec); if(sec){ sec.scrollIntoView({behavior:'smooth', block:'start'});
+        sec.animate([{background:'rgba(70,201,141,.14)'},{background:'transparent'}],{duration:1200}); } }; }
     const v = s.ms!=null && typeof tm[s.ms]==='number' ? Math.max(1,Math.round(tm[s.ms])) : null;
-    el.innerHTML=`<div class="dot">${s.icon}</div><div class="nm">${s.nm}</div>`+
+    el.innerHTML=`<div class="dot">${s.icon}</div>${s.sec?'<div class="go">view ▸</div>':''}<div class="nm">${s.nm}</div>`+
       `<div class="sub">${s.sub}</div><div class="ms">${v!=null?v+' ms':'&nbsp;'}</div>`;
     flow.appendChild(el); els.push(el);
   });
