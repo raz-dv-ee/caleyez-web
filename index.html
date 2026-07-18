@@ -118,6 +118,21 @@
   .chart-toggle{display:flex;gap:6px;justify-content:center;margin-top:12px}
   .chart-toggle .chip{cursor:pointer}
   .chart-toggle .chip.on{color:#04121a;background:var(--accent);border-color:var(--accent);font-weight:700}
+  /* ---------- vitamins/minerals: tidy collapsible grid instead of a run-on ---------- */
+  details.micros{margin-top:12px}
+  details.micros>summary{cursor:pointer;list-style:none;font-size:12px;color:var(--mut);
+    display:flex;align-items:center;gap:7px;padding:5px 0;user-select:none;text-transform:uppercase;letter-spacing:.5px}
+  details.micros>summary::-webkit-details-marker{display:none}
+  details.micros>summary::before{content:'▸';color:var(--accent);transition:transform .2s ease;font-size:11px}
+  details.micros[open]>summary::before{transform:rotate(90deg)}
+  details.micros>summary span{background:var(--panel2);border:1px solid var(--line);border-radius:999px;
+    padding:1px 8px;font-size:10px;color:var(--mut)}
+  .microgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:7px;margin-top:8px}
+  .microcell{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 9px;
+    display:flex;flex-direction:column;gap:2px}
+  .microcell .mn{font-size:9.5px;color:var(--mut);text-transform:capitalize;line-height:1.15}
+  .microcell .mv{font-weight:700;font-size:14px;color:var(--ink);line-height:1}
+  .microcell .mv small{font-size:9px;color:var(--mut);font-weight:600;margin-left:2px}
   .foot{font-size:11px;color:var(--mut);text-align:center;margin-top:auto;padding-top:6px}
   #splash{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;
     justify-content:center;gap:16px;z-index:50}
@@ -738,11 +753,20 @@ const MICRO_LABEL={fiber:'fiber g',sugar:'sugar g',vitA:'vit A µg',vitC:'vit C 
   vitE:'vit E mg',vitK:'vit K µg',b1:'B1 mg',b2:'B2 mg',b3:'B3 mg',b6:'B6 mg',folate:'folate µg',
   b12:'B12 µg',calcium:'calcium mg',iron:'iron mg',magnesium:'magnesium mg',potassium:'potassium mg',
   sodium:'sodium mg',zinc:'zinc mg'};
+// Tidy grid of micronutrient tiles, wrapped in a collapsible <details> so it never crowds the card.
+function microsBlock(m, title, open){
+  if(!m || !Object.keys(m).length) return '';
+  const cells=Object.keys(m).map(k=>{
+    const lbl=MICRO_LABEL[k]||k, parts=lbl.split(' '), unit=parts.pop(), name=parts.join(' ');
+    return `<div class="microcell"><span class="mn">${name}</span><span class="mv">${m[k]}<small>${unit}</small></span></div>`;
+  }).join('');
+  return `<details class="micros"${open?' open':''}><summary>${title} <span>${Object.keys(m).length}</span></summary>`+
+    `<div class="microgrid">${cells}</div></details>`;
+}
 function microsHTML(nut,grams){
   const m=CZTrack.scaleMicros(nut,grams);
   if(!m) return '<div class="muted" style="margin-top:6px;font-size:12px">no vitamin data for this food</div>';
-  return '<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px" class="muted">'+
-    Object.keys(m).map(k=>`<span>${MICRO_LABEL[k]||k}: <b style="color:var(--ink)">${m[k]}</b></span>`).join('')+'</div>';
+  return microsBlock(m, 'Vitamins & minerals', true);
 }
 // One bold calorie ring: big kcal in the centre, protein/carbs/fat as three arcs sweeping the rim.
 const HR_R=86, HR_C=2*Math.PI*86, HR_GAP=12;   // gap (px of circumference) between arcs
@@ -982,12 +1006,7 @@ function renderHistory(){
         `<div class="logrow"><div class="lh"><span class="lf">${esc(m.food).replace(/_/g,' ')}
          <span class="lsub">x${m.count}</span></span><span class="lk">${Math.round(m.kcal)} kcal</span></div></div>`).join('')
     : '';
-  const sm=CZTrack.sumMicros(rows), mk=Object.keys(sm);
-  $("histMicros").innerHTML = mk.length
-    ? '<div class="muted" style="margin-bottom:4px">Vitamins and minerals this period</div>'+
-      '<div style="display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px" class="muted">'+
-      mk.map(k=>`<span>${MICRO_LABEL[k]||k}: <b style="color:var(--ink)">${sm[k]}</b></span>`).join('')+'</div>'
-    : '';
+  $("histMicros").innerHTML = microsBlock(CZTrack.sumMicros(rows), 'Vitamins & minerals this period', false);
   const title={today:'Today',week:'Last 7 days',month:'Last 30 days'}[PERIOD];
   $("histTitle").textContent=title;
   ['TODAY','WEEK','MONTH'].forEach(k=>{
