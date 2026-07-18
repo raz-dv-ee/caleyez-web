@@ -68,6 +68,24 @@
   .macros{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
   .macro{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:8px;text-align:center}
   .macro b{display:block;font-size:18px} .macro span{font-size:11px;color:var(--mut)}
+  /* ---------- animated macro rings (cinematic result reveal) ---------- */
+  .rings{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+  .ring{position:relative;width:88px;margin:0 auto;text-align:center}
+  .ring svg{width:88px;height:88px;display:block}
+  .ring .trk{fill:none;stroke:var(--panel2);stroke-width:7}
+  .ring .prg{fill:none;stroke:var(--rc);stroke-width:7;stroke-linecap:round;
+    transform:rotate(-90deg);transform-origin:50% 50%;
+    transition:stroke-dashoffset 1s cubic-bezier(.2,.8,.2,1);
+    filter:drop-shadow(0 0 5px color-mix(in srgb, var(--rc) 55%, transparent))}
+  .ring .rc{position:absolute;inset:0 0 20px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .ring .rc b{font:800 17px/1 var(--mono,ui-monospace,monospace);color:var(--ink)}
+  .ring .rc i{font-style:normal;font-size:9px;color:var(--mut);margin-top:2px}
+  .ring .rl{font-size:11px;color:var(--mut);margin-top:2px;text-transform:capitalize}
+  .result.show .ring .prg{animation:ringpop .0s}
+  @keyframes revealup{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .reveal{opacity:0;animation:revealup .5s cubic-bezier(.2,.8,.2,1) forwards;animation-delay:calc(var(--ri,0) * .09s)}
+  #rFood.pop{animation:foodpop .5s cubic-bezier(.2,.9,.2,1)}
+  @keyframes foodpop{0%{opacity:0;transform:scale(.9) translateY(6px)}60%{transform:scale(1.02)}100%{opacity:1;transform:none}}
   .foot{font-size:11px;color:var(--mut);text-align:center;margin-top:auto;padding-top:6px}
   #splash{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;
     justify-content:center;gap:16px;z-index:50}
@@ -273,7 +291,7 @@
       <div><div class="wm">CalEyeZ</div><div class="eng" id="epTag">-</div></div>
     </div>
     <div class="scanline"></div>
-    <div class="scanlabel">SCANNING</div>
+    <div class="scanlabel" id="scanlabel">SCANNING</div>
   </div>
 
   <div class="controls">
@@ -574,6 +592,13 @@ function feats(probsF32, names, bgKey){
   return {label:names[idx[0][1]], conf, entropy:H, margin:conf[0]-conf[1], pbg, top5};
 }
 
+// staged label under the scanline: shows the real pipeline stages firing during a capture
+let _scanTimer=null;
+const SCAN_STEPS=['READING PIXELS','GLOBAL EXPERT','ISRAELI EXPERT','ARBITER ROUTING','NUTRITION'];
+function startScanCycle(){ const el=$("scanlabel"); if(!el) return; let k=0; el.textContent=SCAN_STEPS[0];
+  _scanTimer=setInterval(()=>{ k=(k+1)%SCAN_STEPS.length; el.textContent=SCAN_STEPS[k]; }, 200); }
+function stopScanCycle(){ if(_scanTimer){ clearInterval(_scanTimer); _scanTimer=null; } const el=$("scanlabel"); if(el) el.textContent='SCANNING'; }
+
 async function analyze(){
   if(!frozen){ // freeze current frame
     buzz(30); sfxShutter();                         // capture feedback (haptic + shutter)
@@ -583,6 +608,7 @@ async function analyze(){
     await new Promise(r=>{$("shot").onload=r; if($("shot").complete)r();});
   }
   $("status").textContent='analyzing…'; $("stage").classList.add('scanning');
+  const scanT0=performance.now(); startScanCycle();
   await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));  // let the scan animation paint
   const t0=performance.now();
   const tg=tensorFromCanvas(drawROI(G_SZ),G_SZ), go=await G.run({[G.inputNames[0]]:tg});
@@ -606,6 +632,8 @@ async function analyze(){
   last={chosen, routeI, pIsr, confident, abstain, infMs};
   const _pm=FOODMETA[chosen.label]; selSub=(_pm&&_pm.default_sub)?_pm.default_sub:'';   // reset prep/sub for the new food
   selPrep=(_pm&&_pm.prep&&_pm.prep.length)?(_pm.prep.includes('raw')?'raw':_pm.prep[0]):'raw';
+  stopScanCycle();
+  await new Promise(r=>setTimeout(r, Math.max(0, 800-(performance.now()-scanT0))));  // hold the scan long enough to read as a pipeline (the latency chip still shows the true ms)
   $("stage").classList.remove('scanning');
   $("analyze").textContent='📷 New photo';
   if((!confident || abstain) && USDA_PROXY){
@@ -679,10 +707,34 @@ function microsHTML(nut,grams){
   return '<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px" class="muted">'+
     Object.keys(m).map(k=>`<span>${MICRO_LABEL[k]||k}: <b style="color:var(--ink)">${m[k]}</b></span>`).join('')+'</div>';
 }
+const RING_C=201.06;   // 2*pi*32
+// Circular macro gauges: each ring fills to that macro's share of the meal's macro mass.
+function macroRings(nut, r){
+  const items=[['pro','protein','#58a6ff'],['carb','carbs','#d29922'],['fat','fat','#46c98d']];
+  const grams=items.map(([k])=>Math.max(0, (nut[k]||0)*r));
+  const total=grams.reduce((a,b)=>a+b,0)||1;
+  return '<div class="rings">'+items.map(([k,l,col],idx)=>{
+    const frac=Math.min(1, grams[idx]/total);
+    return `<div class="ring reveal" style="--rc:${col};--ri:${idx+1}">
+      <svg viewBox="0 0 88 88"><circle class="trk" cx="44" cy="44" r="32"/>
+      <circle class="prg" cx="44" cy="44" r="32" data-frac="${frac.toFixed(4)}"
+        style="stroke-dasharray:${RING_C};stroke-dashoffset:${RING_C}"/></svg>
+      <div class="rc"><b>${grams[idx].toFixed(0)}</b><i>grams</i></div><div class="rl">${l}</div></div>`;
+  }).join('')+'</div>';
+}
+function fillRings(container){
+  // setTimeout (not rAF) so the fill still triggers if the tab is briefly backgrounded;
+  // the empty offset is already painted from the innerHTML, so this just animates to target.
+  container.querySelectorAll('.prg').forEach((el,idx)=>{
+    const frac=+el.getAttribute('data-frac')||0;
+    setTimeout(()=>{ el.style.strokeDashoffset=(RING_C*(1-frac)).toFixed(2); }, 90+idx*130);
+  });
+}
 function render({chosen, routeI, pIsr, confident, abstain, usedGemini, infMs}){
   const pretty=s=>s.replace(/_/g,' ');
   const label = abstain ? 'not recognized' : pretty(chosen.label);
   $("rFood").textContent=label;
+  if(animateKcal){ $("rFood").classList.remove('pop'); void $("rFood").offsetWidth; $("rFood").classList.add('pop'); }
   const meta=[];
   if(infMs!=null) meta.push(`<span class="chip" style="background:#123a2a;color:#46c98d" title="Both CNNs + arbiter ran in your browser via WebAssembly. No image left the device for recognition.">⚡ ${infMs} ms · on-device edge</span>`);
   if(usedGemini){
@@ -708,8 +760,8 @@ function render({chosen, routeI, pIsr, confident, abstain, usedGemini, infMs}){
     const tail=`<small>kcal · ${g} g${tag?' · '+tag:''}</small>`;
     $("rKcal").innerHTML=`${kc} ${tail}`;                        // always set final value (robust if rAF throttled)
     if(animateKcal){ countUp($("rKcal"), kc, tail); animateKcal=false; }   // then animate for flair
-    $("rMacros").innerHTML=[['pro','protein'],['carb','carbs'],['fat','fat']]
-      .map(([k,l])=>`<div class="macro"><b>${(nut[k]*r).toFixed(1)}g</b><span>${l}</span></div>`).join('');
+    $("rMacros").innerHTML=macroRings(nut, r);
+    fillRings($("rMacros"));
     $("rMicros").innerHTML=microsHTML(nut, g);
   }else{
     $("rKcal").innerHTML = g>0 ? `<small>no local nutrition for “${pretty(chosen.label)}”</small>`
