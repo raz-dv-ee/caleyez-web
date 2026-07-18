@@ -411,10 +411,12 @@
         <button class="chip" id="pMONTH" onclick="setPeriod('month')">Month</button>
       </span>
     </div>
-    <div class="macros" id="histMacros" style="margin-top:10px"></div>
+    <div id="histEmpty" class="muted" style="display:none;text-align:center;padding:18px 6px;font-size:13px;line-height:1.5"></div>
+    <div id="histData">
+      <div class="macros" id="histMacros" style="margin-top:10px"></div>
       <div id="histAvg" class="muted" style="margin-top:6px;font-size:12px"></div>
-    <div id="histBalance" class="balance"></div>
-    <div id="histList" style="margin-top:10px;font-size:14px"></div>
+      <div id="histBalance" class="balance"></div>
+      <div id="histList" style="margin-top:10px;font-size:14px"></div>
       <div class="chart-toggle">
         <button class="chip on" id="cmMACROS" onclick="setChartMode('macros')">Macros</button>
         <button class="chip" id="cmENERGY" onclick="setChartMode('energy')">In vs Out</button>
@@ -422,6 +424,7 @@
       <canvas id="histChart" height="120" style="margin-top:8px"></canvas>
       <div id="histTop" style="margin-top:10px;font-size:13px"></div>
       <div id="histMicros" style="margin-top:8px"></div>
+    </div>
     <div style="display:flex;gap:10px;margin-top:10px">
       <button class="mini" id="histCsv">export CSV</button>
       <label class="mini" style="cursor:pointer">import CSV
@@ -972,14 +975,9 @@ function renderChart(buckets){
   if(CHART_MODE==='energy'){
     const out=CZTrack.tdee(PROFILE||{});                 // per-day burn (null without a profile)
     const inData=buckets.map(b=>Math.round(b.kcal));
-    const barCol=inData.map(v=> out && v>out ? grad('#e0a33a') : grad('#46c98d'));   // over budget = amber, under = green
-    const ds=[{type:'bar', label:'eaten (in)', data:inData, backgroundColor:barCol, borderRadius:6, borderSkipped:false, maxBarThickness:30, order:2}];
-    if(out){
-      const lg=ctx.createLinearGradient(0,0,0,205); lg.addColorStop(0,'#58a6ff40'); lg.addColorStop(1,'#58a6ff00');
-      ds.push({type:'line', label:'burned / TDEE (out)', data:buckets.map(()=>out), borderColor:'#58a6ff',
-        borderWidth:2, borderDash:[6,5], pointRadius:0, fill:true, backgroundColor:lg, order:1, tension:0});
-    }
-    data={labels:buckets.map(b=>b.label), datasets:ds};
+    const ds=[{label:'in (eaten)', data:inData, backgroundColor:grad('#46c98d'), borderRadius:5, borderSkipped:false, maxBarThickness:22}];
+    if(out) ds.push({label:'out (burned)', data:buckets.map(()=>out), backgroundColor:grad('#58a6ff'), borderRadius:5, borderSkipped:false, maxBarThickness:22});
+    data={labels:buckets.map(b=>b.label), datasets:ds};   // two bars side by side per day: in vs out
     opts=baseOpts(scales(''), items=>{ if(!out) return ''; const net=Math.round(buckets[items[0].dataIndex].kcal)-out;
       return (net>0?'surplus +':'deficit ')+net+' kcal'; });
   }else{
@@ -994,8 +992,16 @@ function renderChart(buckets){
 }
 function renderHistory(){
   const all=loadLog();
-  if(!all.length){ $("histCard").classList.remove('show'); return; }
-  $("histCard").classList.add('show');
+  $("histCard").classList.add('show');                       // always visible, so import is reachable before any meal
+  if(!all.length){
+    $("histData").style.display='none';
+    $("histEmpty").style.display='';
+    $("histEmpty").innerHTML='No meals logged yet.<br>Log one above, or <b style="color:var(--accent)">import a backup</b> with the button below.';
+    $("histTitle").textContent='Your day'; $("histTotal").textContent='';
+    if(histChart){ histChart.destroy(); histChart=null; }
+    return;
+  }
+  $("histData").style.display=''; $("histEmpty").style.display='none';
   const now=Date.now();
   const rows=CZTrack.filterPeriod(all, PERIOD, now);
   const t=CZTrack.totals(rows);
