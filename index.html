@@ -115,6 +115,8 @@
   .balance .bk{font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:var(--mut)}
   .balance .bv{font:800 20px/1.1 system-ui,'Segoe UI',sans-serif;margin-top:4px;font-variant-numeric:tabular-nums}
   .balance .bv small{font-size:11px;color:var(--mut);font-weight:600}
+  .flame{display:inline-block;animation:flame 1.3s ease-in-out infinite;transform-origin:50% 90%}
+  @keyframes flame{0%,100%{transform:scale(1) rotate(-3deg);filter:brightness(1)}50%{transform:scale(1.18) rotate(3deg);filter:brightness(1.25)}}
   .chart-toggle{display:flex;gap:6px;justify-content:center;margin-top:12px}
   .chart-toggle .chip{cursor:pointer}
   .chart-toggle .chip.on{color:#04121a;background:var(--accent);border-color:var(--accent);font-weight:700}
@@ -127,9 +129,12 @@
   details.micros[open]>summary::before{transform:rotate(90deg)}
   details.micros>summary span{background:var(--panel2);border:1px solid var(--line);border-radius:999px;
     padding:1px 8px;font-size:10px;color:var(--mut)}
-  .microgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:7px;margin-top:8px}
+  .microgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:7px;margin-top:8px}
   .microcell{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 9px;
-    display:flex;flex-direction:column;gap:2px}
+    display:flex;align-items:center;gap:8px;transition:border-color .18s ease, transform .12s ease}
+  .microcell:hover{border-color:rgba(36,160,107,.45);transform:translateY(-1px)}
+  .microcell .mi{font-size:16px;flex:none;line-height:1}
+  .microcell .mtxt{display:flex;flex-direction:column;gap:2px;min-width:0}
   .microcell .mn{font-size:9.5px;color:var(--mut);text-transform:capitalize;line-height:1.15}
   .microcell .mv{font-weight:700;font-size:14px;color:var(--ink);line-height:1}
   .microcell .mv small{font-size:9px;color:var(--mut);font-weight:600;margin-left:2px}
@@ -174,6 +179,16 @@
   .logrow .lk{font-weight:800;white-space:nowrap}
   .logrow .lm{display:flex;gap:14px;margin-top:6px;font-size:12px;color:var(--mut)}
   .logrow .lm i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;vertical-align:middle}
+  /* tap a logged meal to reveal its nutrients */
+  details.logd>summary{list-style:none;cursor:pointer;position:relative;padding-left:16px;border-radius:8px;transition:background .18s ease}
+  details.logd>summary::-webkit-details-marker{display:none}
+  details.logd>summary::before{content:'\25B8';position:absolute;left:2px;top:12px;color:var(--accent);font-size:11px;transition:transform .2s ease}
+  details.logd[open]>summary::before{transform:rotate(90deg)}
+  details.logd>summary:hover{background:rgba(255,255,255,.03)}
+  details.logd>summary .logrow{border-bottom:0}
+  details.logd{border-bottom:1px solid var(--line)}
+  details.logd:last-child{border-bottom:0}
+  details.logd .logdetail{padding:0 0 10px 16px;animation:revealup .35s ease}
   #histTotal{font-weight:700;color:var(--accent)}
 
   /* ---------- premium polish layer ---------- */
@@ -757,14 +772,20 @@ const MICRO_LABEL={fiber:'fiber g',sugar:'sugar g',vitA:'vit A µg',vitC:'vit C 
   b12:'B12 µg',calcium:'calcium mg',iron:'iron mg',magnesium:'magnesium mg',potassium:'potassium mg',
   sodium:'sodium mg',zinc:'zinc mg'};
 // Tidy grid of micronutrient tiles, wrapped in a collapsible <details> so it never crowds the card.
+const MICRO_ICON={fiber:'🌾',sugar:'🍬',vitA:'🥕',vitC:'🍊',vitD:'☀️',vitE:'🥑',vitK:'🥬',
+  b1:'🅱️',b2:'🅱️',b3:'🅱️',b6:'🅱️',folate:'🍃',b12:'🅱️',calcium:'🦴',iron:'🩸',
+  magnesium:'🧲',potassium:'🍌',sodium:'🧂',zinc:'⚡'};
+function microGridHTML(m){
+  return '<div class="microgrid">'+Object.keys(m).map(k=>{
+    const lbl=MICRO_LABEL[k]||k, parts=lbl.split(' '), unit=parts.pop(), name=parts.join(' ');
+    return `<div class="microcell"><span class="mi">${MICRO_ICON[k]||'•'}</span>`+
+      `<span class="mtxt"><span class="mn">${name}</span><span class="mv">${m[k]}<small>${unit}</small></span></span></div>`;
+  }).join('')+'</div>';
+}
 function microsBlock(m, title, open){
   if(!m || !Object.keys(m).length) return '';
-  const cells=Object.keys(m).map(k=>{
-    const lbl=MICRO_LABEL[k]||k, parts=lbl.split(' '), unit=parts.pop(), name=parts.join(' ');
-    return `<div class="microcell"><span class="mn">${name}</span><span class="mv">${m[k]}<small>${unit}</small></span></div>`;
-  }).join('');
   return `<details class="micros"${open?' open':''}><summary>${title} <span>${Object.keys(m).length}</span></summary>`+
-    `<div class="microgrid">${cells}</div></details>`;
+    microGridHTML(m)+`</details>`;
 }
 function microsHTML(nut,grams){
   const m=CZTrack.scaleMicros(nut,grams);
@@ -975,8 +996,9 @@ function renderChart(buckets){
   if(CHART_MODE==='energy'){
     const out=CZTrack.tdee(PROFILE||{});                 // per-day burn (null without a profile)
     const inData=buckets.map(b=>Math.round(b.kcal));
+    const fireG=ctx.createLinearGradient(0,0,0,205); fireG.addColorStop(0,'#ff7a45'); fireG.addColorStop(.55,'#f0883e'); fireG.addColorStop(1,'#f0883e22');
     const ds=[{label:'in (eaten)', data:inData, backgroundColor:grad('#46c98d'), borderRadius:5, borderSkipped:false, maxBarThickness:22}];
-    if(out) ds.push({label:'out (burned)', data:buckets.map(()=>out), backgroundColor:grad('#58a6ff'), borderRadius:5, borderSkipped:false, maxBarThickness:22});
+    if(out) ds.push({label:'out (burned) 🔥', data:buckets.map(()=>out), backgroundColor:fireG, borderRadius:5, borderSkipped:false, maxBarThickness:22});
     data={labels:buckets.map(b=>b.label), datasets:ds};   // two bars side by side per day: in vs out
     opts=baseOpts(scales(''), items=>{ if(!out) return ''; const net=Math.round(buckets[items[0].dataIndex].kcal)-out;
       return (net>0?'surplus +':'deficit ')+net+' kcal'; });
@@ -1029,7 +1051,7 @@ function renderHistory(){
     const netc=over?'#e0a33a':'#46c98d';
     $("histBalance").innerHTML=
       `<div class="bc" style="--bar:#46c98d"><div class="bk">total in</div><div class="bv" style="color:#46c98d">${tin}<small> kcal</small></div></div>`+
-      `<div class="bc" style="--bar:#58a6ff"><div class="bk">total out</div><div class="bv" style="color:#58a6ff">${tout}<small> kcal</small></div></div>`+
+      `<div class="bc" style="--bar:#f0883e"><div class="bk">total out <span class="flame">🔥</span></div><div class="bv" style="color:#f0883e">${tout}<small> kcal</small></div></div>`+
       `<div class="bc" style="--bar:${netc}"><div class="bk">net ${over?'surplus':'deficit'}</div><div class="bv" style="color:${netc}">${over?'+':''}${net}<small> kcal</small></div></div>`;
   } else {
     $("histBalance").innerHTML=`<div class="bc" style="grid-column:1/-1;--bar:#46c98d"><div class="bk">total in</div><div class="bv" style="color:#46c98d">${t.kcal}<small> kcal</small></div><div class="bk" style="margin-top:6px;text-transform:none">add your profile to see calories out and net</div></div>`;
@@ -1045,9 +1067,13 @@ function renderHistory(){
         <span><i style="background:var(--blue)"></i>${r.pro}g protein</span>
         <span><i style="background:var(--amber)"></i>${r.carb}g carbs</span>
         <span><i style="background:var(--accent)"></i>${r.fat}g fat</span></div>`:'';
-    return `<div class="logrow"><div class="lh">
+    const detail = r.micros
+      ? microGridHTML(r.micros)
+      : '<div class="muted" style="font-size:12px;padding:4px 0 8px">no vitamin data stored for this meal</div>';
+    return `<details class="logd"><summary class="logrow"><div class="lh">
         <span class="lf">${esc(r.food).replace(/_/g,' ')} <span class="lsub">${r.sub?esc(r.sub)+' · ':''}${r.method?esc(r.method).replace(/_/g,' ')+' · ':''}${r.grams}g · ${tm}</span></span>
-        <span class="lk">${r.kcal!=null?r.kcal+' kcal':'-'}</span></div>${macros}</div>`;
+        <span class="lk">${r.kcal!=null?r.kcal+' kcal':'-'}</span></div>${macros}</summary>
+        <div class="logdetail">${detail}</div></details>`;
   }).join('') || '<span class="chip">no entries in this period</span>';
 }
 $("recipeBtn").onclick=()=>{
