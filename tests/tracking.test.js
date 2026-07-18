@@ -188,3 +188,25 @@ test("mergeRows dedupes by ts", () => {
   assert.strictEqual(m.length, 3);
   assert.deepStrictEqual(m.map((r) => r.ts), [1, 2, 3]);
 });
+
+test("calorieTarget shifts TDEE by the goal", () => {
+  const base = { sex: "m", weightKg: 74, heightCm: 178, age: 24, activity: 1.55 };
+  const t = T.tdee(base);
+  assert.strictEqual(T.calorieTarget({ ...base, goal: "maintain" }), t);
+  assert.strictEqual(T.calorieTarget({ ...base, goal: "lose" }), t - 500);
+  assert.strictEqual(T.calorieTarget({ ...base, goal: "gain" }), t + 400);
+  assert.strictEqual(T.calorieTarget(base), t);            // unset goal behaves as maintain
+});
+
+test("calorieTarget is null without a full profile, and floors at 1000", () => {
+  assert.strictEqual(T.calorieTarget({}), null);
+  assert.strictEqual(T.calorieTarget({ sex: "f", weightKg: 40, heightCm: 150, age: 80, activity: 1.2, goal: "lose" }), 1000);
+});
+
+test("macroTargets splits a calorie target into grams", () => {
+  const m = T.macroTargets(2000);
+  assert.strictEqual(m.pro, 150);   // 30% of 2000 / 4
+  assert.strictEqual(m.carb, 200);  // 40% of 2000 / 4
+  assert.strictEqual(m.fat, 67);    // 30% of 2000 / 9, rounded
+  assert.strictEqual(T.macroTargets(null), null);
+});

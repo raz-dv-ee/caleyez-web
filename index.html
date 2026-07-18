@@ -117,6 +117,13 @@
   .balance .bv small{font-size:11px;color:var(--mut);font-weight:600}
   .flame{display:inline-block;animation:flame 1.3s ease-in-out infinite;transform-origin:50% 90%}
   @keyframes flame{0%,100%{transform:scale(1) rotate(-3deg);filter:brightness(1)}50%{transform:scale(1.18) rotate(3deg);filter:brightness(1.25)}}
+  /* ---------- calorie goal progress bar ---------- */
+  .goalbar{margin-top:14px}
+  .goalbar-head{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--mut);margin-bottom:6px}
+  .goalbar-head b{color:var(--ink);font-weight:800;font-variant-numeric:tabular-nums}
+  .goaltrack{height:10px;background:var(--panel2);border:1px solid var(--line);border-radius:99px;overflow:hidden}
+  .goalfill{height:100%;border-radius:99px;transition:width 1s cubic-bezier(.2,.8,.2,1);
+    box-shadow:0 0 10px -2px currentColor}
   .chart-toggle{display:flex;gap:6px;justify-content:center;margin-top:12px}
   .chart-toggle .chip{cursor:pointer}
   .chart-toggle .chip.on{color:#04121a;background:var(--accent);border-color:var(--accent);font-weight:700}
@@ -331,8 +338,16 @@
         <option value="1.9">extra active - hard training</option>
       </select>
     </div>
-    <button class="btn wstart" id="wStart" style="--d:5">Start tracking</button>
-    <button class="wskip" id="wSkip" style="--d:6">skip for now</button>
+    <div class="wfield" style="--d:5">
+      <label for="wGoal">your goal</label>
+      <select id="wGoal">
+        <option value="lose">lose weight (-500 kcal/day)</option>
+        <option value="maintain" selected>maintain weight</option>
+        <option value="gain">gain weight (+400 kcal/day)</option>
+      </select>
+    </div>
+    <button class="btn wstart" id="wStart" style="--d:6">Start tracking</button>
+    <button class="wskip" id="wSkip" style="--d:7">skip for now</button>
   </div>
 </div>
 
@@ -412,6 +427,9 @@
         <option value="1.55" selected>moderate</option><option value="1.725">very active</option>
         <option value="1.9">extra active</option>
       </select>
+      <select id="pfGoal" style="width:120px">
+        <option value="lose">lose weight</option><option value="maintain" selected>maintain</option><option value="gain">gain weight</option>
+      </select>
       <button class="btn" id="pfSave" style="width:auto;padding:8px 14px">Save</button>
     </div>
   </div>
@@ -429,6 +447,7 @@
     <div id="histEmpty" class="muted" style="display:none;text-align:center;padding:18px 6px;font-size:13px;line-height:1.5"></div>
     <div id="histData">
       <div class="macros" id="histMacros" style="margin-top:10px"></div>
+      <div id="histGoal"></div>
       <div id="histAvg" class="muted" style="margin-top:6px;font-size:12px"></div>
       <div id="histBalance" class="balance"></div>
       <div id="histList" style="margin-top:10px;font-size:14px"></div>
@@ -797,8 +816,8 @@ function microsHTML(nut,grams){
 }
 // One bold calorie ring: big kcal in the centre, protein/carbs/fat as three arcs sweeping the rim.
 const HR_R=86, HR_C=2*Math.PI*86, HR_GAP=12;   // gap (px of circumference) between arcs
-function heroRing({kcal, pro, carb, fat, sub}){
-  const items=[['#58a6ff',pro,'protein'],['#d29922',carb,'carbs'],['#46c98d',fat,'fat']];
+function heroRing({kcal, pro, carb, fat, sub, targets}){
+  const items=[['#58a6ff',pro,'protein','pro'],['#d29922',carb,'carbs','carb'],['#46c98d',fat,'fat','fat']];
   const total=(pro+carb+fat)||1;
   let cum=0, arcs='';
   items.forEach(([col,val])=>{
@@ -807,7 +826,10 @@ function heroRing({kcal, pro, carb, fat, sub}){
       ` style="--ac:${col};transform:rotate(${rot.toFixed(2)}deg);stroke-dasharray:${len.toFixed(2)} ${(HR_C-len).toFixed(2)};stroke-dashoffset:${len.toFixed(2)}"/>`;
     cum+=frac;
   });
-  const leg=items.map(([col,val,l])=>`<span><i style="background:${col}"></i><b>${(val||0).toFixed(0)}g</b> ${l}</span>`).join('');
+  const leg=items.map(([col,val,l,k])=>{
+    const tgt = targets && targets[k];
+    return `<span><i style="background:${col}"></i><b>${(val||0).toFixed(0)}${tgt?' / '+tgt:'g'}</b> ${tgt?'g '+l:l}</span>`;
+  }).join('');
   return `<div class="hero-wrap"><div class="hero-ring" data-kcal="${Math.round(kcal)||0}">
     <svg viewBox="0 0 200 200"><circle class="hr-bg" r="${HR_R}" cx="100" cy="100"/>${arcs}</svg>
     <div class="hr-center"><div class="hr-kcal">0</div><div class="hr-unit">KCAL</div>${sub?`<div class="hr-sub">${sub}</div>`:''}</div>
@@ -1045,9 +1067,25 @@ function renderHistory(){
   });
   const t2=CZTrack.tdee(PROFILE||{});
   const days={today:1,week:7,month:30}[PERIOD];
+  // goal: daily calorie target x days, and the macro split scaled to the period
+  const tgtDay=CZTrack.calorieTarget(PROFILE||{});
+  const target=tgtDay?tgtDay*days:null;
+  const mtDay=tgtDay?CZTrack.macroTargets(tgtDay):null;
+  const macroT=mtDay?{pro:mtDay.pro*days, carb:mtDay.carb*days, fat:mtDay.fat*days}:null;
+  const left=target?target-t.kcal:0;
+  const ringSub=target?(left>=0?`${left} kcal left of ${target}`:`${-left} over your ${target} goal`):'';
   $("histTotal").textContent='';                                   // the big number now lives in the hero ring
-  $("histMacros").innerHTML=heroRing({kcal:t.kcal, pro:t.pro, carb:t.carb, fat:t.fat, sub:''});
+  $("histMacros").innerHTML=heroRing({kcal:t.kcal, pro:t.pro, carb:t.carb, fat:t.fat, sub:ringSub, targets:macroT});
   animateHeroRing($("histMacros"));
+  // calorie goal progress bar
+  if(target){
+    const pct=Math.min(100, Math.round(t.kcal/target*100)), over=t.kcal>target, near=!over&&pct>=90;
+    const col=over?'#f0883e':(near?'#e0a33a':'#46c98d');
+    $("histGoal").innerHTML=`<div class="goalbar"><div class="goalbar-head"><span>${{today:'today',week:'this week',month:'this month'}[PERIOD]} vs goal</span>`+
+      `<span><b>${t.kcal}</b> / ${target} kcal</span></div><div class="goaltrack">`+
+      `<div class="goalfill" data-w="${pct}" style="width:0;background:${col}"></div></div></div>`;
+    setTimeout(()=>{ const gf=$("histGoal").querySelector('.goalfill'); if(gf) gf.style.width=gf.getAttribute('data-w')+'%'; },70);
+  } else { $("histGoal").innerHTML=''; }
   // energy balance: total in / out / net for the period
   if(t2){
     const tin=t.kcal, tout=t2*days, net=tin-tout, over=net>0;
@@ -1108,12 +1146,13 @@ $("profBtn").onclick=()=>{
   const f=$("profForm"); f.style.display = f.style.display==='none' ? 'flex' : 'none';
   if(PROFILE){ $("pfName").value=PROFILE.name||''; $("pfSex").value=PROFILE.sex||'m';
     $("pfAge").value=PROFILE.age||''; $("pfH").value=PROFILE.heightCm||'';
-    $("pfW").value=PROFILE.weightKg||''; $("pfAct").value=PROFILE.activity||1.55; }
+    $("pfW").value=PROFILE.weightKg||''; $("pfAct").value=PROFILE.activity||1.55;
+    $("pfGoal").value=PROFILE.goal||'maintain'; }
 };
 $("pfSave").onclick=()=>{
   const nn=v=>Math.max(0,+v||0); // clamp so a stray minus cannot produce a negative BMI/TDEE
   PROFILE={name:($("pfName").value||'').trim(), sex:$("pfSex").value, age:nn($("pfAge").value),
-    heightCm:nn($("pfH").value), weightKg:nn($("pfW").value), activity:+$("pfAct").value||1.55};
+    heightCm:nn($("pfH").value), weightKg:nn($("pfW").value), activity:+$("pfAct").value||1.55, goal:$("pfGoal").value};
   saveProfile(PROFILE); $("profForm").style.display='none'; renderGreeting(); renderHistory();
 };
 renderGreeting();
@@ -1126,7 +1165,7 @@ $("wStart").onclick=()=>{
   if(!name){ $("wName").classList.add('shake'); setTimeout(()=>$("wName").classList.remove('shake'),420); $("wName").focus(); return; }
   const nn=v=>Math.max(0,+v||0);
   PROFILE={name, sex:$("wSex").value, age:nn($("wAge").value), heightCm:nn($("wH").value),
-    weightKg:nn($("wW").value), activity:+$("wAct").value||1.55};
+    weightKg:nn($("wW").value), activity:+$("wAct").value||1.55, goal:$("wGoal").value};
   saveProfile(PROFILE); hideWelcome(); renderGreeting(); renderHistory();
 };
 $("wSkip").onclick=()=>{ saveProfile(PROFILE||{name:''}); hideWelcome(); };  // remember they were asked; do not nag every load
