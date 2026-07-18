@@ -404,9 +404,23 @@ const PIPE_STAGES=[
   {icon:'🌐', nm:'Global CNN',  sub:'132-class',   col:'var(--blue)',   ms:'gMs',    sec:'sec2'},
   {icon:'🍽', nm:'Israeli CNN', sub:'13-class',    col:'var(--lgreen)', ms:'iMs',    sec:'sec2'},
   {icon:'⚖',  nm:'Arbiter',     sub:'XGBoost',     col:'var(--amber)',  ms:'arbMs',  sec:'sec4'},
-  {icon:'🍎', nm:'Nutrition',   sub:'USDA / local',col:'var(--lgreen)', ms:null,     sec:'sec5'}
+  {icon:'🍎', nm:'Nutrition',   sub:'USDA / local',col:'var(--lgreen)', ms:'nutMs',  sec:'sec5'}
 ];
-let pipeAnim=null;
+let pipeAnim=null, _recogMs=0;
+// Called once the nutrition step resolves (USDA network fetch, or ~0 for a local-DB hit):
+// fills the Nutrition node's time and promotes the HUD to a true end-to-end total.
+function updateNut(nutMs){
+  const flow=$("flow"), hud=$("hud"); if(!flow) return;
+  const net=nutMs>3;                                   // >3 ms means a real network round-trip; else local DB
+  const stgs=flow.querySelectorAll('.stg'), nutNode=stgs[stgs.length-1];
+  if(nutNode){ const m=nutNode.querySelector('.ms'); if(m) m.innerHTML = net?Math.round(nutMs)+' ms':'local';
+    nutNode.classList.add('on','pulse'); setTimeout(()=>nutNode.classList.remove('pulse'),700);
+    const conns=flow.querySelectorAll('.conn'), last=conns[conns.length-1];
+    if(last){ last.classList.add('on'); setTimeout(()=>last.classList.remove('on'),1400); } }
+  const cell=hud.querySelector('.cell');
+  if(cell){ cell.querySelector('.k').textContent = net?'end-to-end (device + net)':'end-to-end (on-device)';
+    cell.querySelector('.val').innerHTML=`${Math.round(_recogMs+nutMs)}<small> ms</small>`; }
+}
 function renderPipeline(t){
   const flow=$("flow"), hud=$("hud"), tag=$("heroTag"); if(!flow) return;
   const tm=t.timing||{};
@@ -425,8 +439,10 @@ function renderPipeline(t){
   const rc=t.routeI?'i':'g';
   const label=t.chosen?pretty(t.chosen.label):(t.chosenLabel||'-');
   const decision=t.abstain?'ABSTAIN':(t.confident?label:'UNSURE');
+  const recog=Math.round(tm.infMs||0); _recogMs=recog;
+  const hasNut=typeof tm.nutMs==='number', e2e=recog+(hasNut?Math.round(tm.nutMs):0);
   hud.innerHTML=[
-    {k:'on-device latency', v:`${Math.round(tm.infMs||0)}<small> ms</small>`, c:''},
+    {k: hasNut?'end-to-end':'on-device so far', v:`${e2e}<small> ms</small>`, c:''},
     {k:'P(israeli)', v:(+t.pIsr).toFixed(3), c:rc},
     {k:'route', v:t.routeI?'ISRAELI':'GLOBAL', c:rc},
     {k:'decision', v:decision, c:t.confident?'ok':'warn'}
@@ -447,7 +463,7 @@ function renderPipeline(t){
 }
 // sample trace at rest (documented p50 latency breakdown), so the console is populated and honest before a capture
 function seedPipeline(){
-  renderPipeline({live:false, timing:{prepMs:7.7,gMs:76,iMs:61,arbMs:2.6,infMs:150},
+  renderPipeline({live:false, timing:{prepMs:7.7,gMs:76,iMs:61,arbMs:2.6,infMs:150,nutMs:950},
     pIsr:0.12, routeI:false, confident:true, abstain:false, chosenLabel:'pizza'});
 }
 
@@ -524,7 +540,7 @@ function renderAll(r){
   lastLabel=label; lastUSDA=undefined;
   selSubE=''; const _m=FOODMETA[label];
   selPrepE=(_m&&_m.prep&&_m.prep.length)?(_m.prep.includes('raw')?'raw':_m.prep[0]):'raw';
-  renderNutrition();
+  renderNutrition(true);           // fresh trace: time the nutrition step and report end-to-end
   $("out").style.display='flex';
   if(!r.confident) geminiStepE();   // low-confidence -> actually run Gemini and show its identification
 }
@@ -556,17 +572,21 @@ const S_SEL='padding:6px 8px;border-radius:8px;background:var(--panel2);color:va
 function onSubE(v){selSubE=v;renderNutrition();}
 function onPrepE(v){selPrepE=v;renderNutrition();}
 
-async function renderNutrition(){
+async function renderNutrition(fresh){
   const label=lastLabel, card=$("cardNut");
-  if(!label){ card.innerHTML=`<div class="muted">no recognized food (abstained)</div>`; return; }
+  if(!label){ card.innerHTML=`<div class="muted">no recognized food (abstained)</div>`; if(fresh) updateNut(0); return; }
   const q=pretty(label), meta=FOODMETA[label]||{}, local=NUTR[label];
   // fetch USDA candidates once (debug=1 -> ranked list) when there is no local entry
+  let nutMs=0;
   if(lastUSDA===undefined && !local && USDA_PROXY){
     card.innerHTML=`<div class="muted">query "<b style="color:var(--ink)">${q}</b>" → USDA…</div>`;
+    const n0=performance.now();
     try{ const rr=await fetch(USDA_PROXY+'?debug=1&q='+encodeURIComponent(q)); lastUSDA=rr.ok?await rr.json():null; }
     catch(e){ lastUSDA=null; }
+    nutMs=performance.now()-n0;
     if(label!==lastLabel) return;   // a newer analyze superseded us
   }
+  if(fresh) updateNut(nutMs);       // nutrition resolved (network or local): promote the HUD to a real end-to-end total
   // base per-100g: curated sub-food > local DB > USDA
   let base, src;
   if(selSubE && meta.subs && meta.subs[selSubE]){ base=meta.subs[selSubE]; src='curated sub-food'; }
