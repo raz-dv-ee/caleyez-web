@@ -37,40 +37,64 @@
   .pipe .arrow{color:var(--mut);font-size:18px;flex:none}
 
   /* ---------- hero: live system pipeline ---------- */
-  .hero{background:
+  .hero{position:relative;overflow:hidden;background:
       radial-gradient(120% 100% at 0% 0%, rgba(77,157,224,.10), transparent 45%),
       radial-gradient(120% 100% at 100% 0%, rgba(36,160,107,.12), transparent 45%),
       var(--panel);
     border:1px solid var(--line);border-radius:14px;padding:14px 12px 12px;
     box-shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 16px 40px -24px #000}
+  /* faint circuit grid backdrop */
+  .hero::before{content:'';position:absolute;inset:0;z-index:0;pointer-events:none;opacity:.6;
+    background-image:linear-gradient(rgba(70,201,141,.06) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(70,201,141,.06) 1px,transparent 1px);
+    background-size:24px 24px;
+    -webkit-mask:radial-gradient(120% 80% at 50% 20%,#000,transparent 78%);
+    mask:radial-gradient(120% 80% at 50% 20%,#000,transparent 78%)}
+  /* slow scanline sweep for a live-monitor feel */
+  .hero::after{content:'';position:absolute;left:0;right:0;top:0;height:34%;z-index:0;pointer-events:none;
+    background:linear-gradient(180deg,rgba(70,201,141,.06),transparent);animation:heroscan 6s ease-in-out infinite}
+  @keyframes heroscan{0%,100%{transform:translateY(-10%);opacity:0}50%{transform:translateY(220%);opacity:1}}
+  .hero>*{position:relative;z-index:1}
   .hero-head{display:flex;align-items:center;gap:8px;margin-bottom:12px}
   .hero-title{font-family:var(--brand);font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--lgreen)}
+  .hero-title::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--lgreen);
+    margin-right:7px;vertical-align:middle;box-shadow:0 0 8px var(--lgreen);animation:livedot 1.6s ease-in-out infinite}
+  @keyframes livedot{0%,100%{opacity:1}50%{opacity:.3}}
   .hero-tag{margin-left:auto;font:10px var(--mono);color:var(--mut);border:1px solid var(--line);
     border-radius:999px;padding:3px 9px}
   .hero-tag.live{color:#04121a;background:var(--lgreen);border-color:var(--lgreen);font-weight:700}
-  .flow{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:2px 0 8px}
-  .stg{flex:1 0 96px;min-width:96px;position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;
+  .flow{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:2px 0 10px}
+  .stg{flex:1 0 100px;min-width:100px;position:relative;display:flex;flex-direction:column;align-items:center;gap:5px;
     padding:2px 4px;opacity:.35;transform:translateY(3px);transition:opacity .35s ease, transform .35s ease}
   .stg.on{opacity:1;transform:none}
-  .stg .dot{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;
-    background:var(--panel2);border:1px solid var(--line);font-size:19px;position:relative;transition:box-shadow .35s ease, border-color .35s ease}
-  .stg.on .dot{border-color:var(--nodecol,var(--lgreen));box-shadow:0 0 0 1px var(--nodecol,var(--lgreen)), 0 0 22px -4px var(--nodecol,var(--lgreen))}
-  .stg.pulse .dot::after{content:'';position:absolute;inset:-1px;border-radius:12px;border:2px solid var(--nodecol,var(--lgreen));
+  .stg .dot{width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(circle at 50% 35%, #17222f, var(--panel2));border:1px solid var(--line);font-size:22px;
+    position:relative;transition:box-shadow .35s ease, border-color .35s ease}
+  .stg.on .dot{border-color:var(--nodecol,var(--lgreen));animation:nodebreath 2.6s ease-in-out infinite}
+  @keyframes nodebreath{0%,100%{box-shadow:0 0 0 1px var(--nodecol,var(--lgreen)), 0 0 14px -6px var(--nodecol,var(--lgreen))}
+    50%{box-shadow:0 0 0 1px var(--nodecol,var(--lgreen)), 0 0 26px -2px var(--nodecol,var(--lgreen))}}
+  .stg.pulse .dot::after{content:'';position:absolute;inset:-1px;border-radius:14px;border:2px solid var(--nodecol,var(--lgreen));
     animation:stgpulse .7s ease-out}
-  @keyframes stgpulse{from{opacity:.9;transform:scale(1)}to{opacity:0;transform:scale(1.5)}}
+  @keyframes stgpulse{from{opacity:.9;transform:scale(1)}to{opacity:0;transform:scale(1.6)}}
   .stg .nm{font:600 10px var(--mono);color:var(--ink);text-align:center;line-height:1.25}
   .stg .sub{font:9px var(--mono);color:var(--mut);text-align:center;line-height:1.2}
   .stg .ms{font:700 12px var(--mono);color:var(--nodecol,var(--lgreen))}
-  .conn{flex:0 0 20px;align-self:flex-start;margin-top:23px;height:2px;border-radius:2px;background:var(--line);position:relative;overflow:hidden}
+  /* connectors: always carry a subtle data flow, brighter when active */
+  .conn{flex:0 0 22px;align-self:flex-start;margin-top:26px;height:2px;border-radius:2px;
+    background:var(--line);position:relative;overflow:hidden}
+  .conn::after{content:'';position:absolute;top:0;left:-45%;width:45%;height:100%;
+    background:linear-gradient(90deg,transparent,rgba(70,201,141,.55),transparent);animation:flow 1.8s linear infinite}
   .conn.on{background:linear-gradient(90deg,var(--line),var(--lgreen))}
-  .conn.on::after{content:'';position:absolute;top:0;left:-40%;width:40%;height:100%;
-    background:linear-gradient(90deg,transparent,var(--lgreen),transparent);animation:flow 1s linear infinite}
+  .conn.on::after{background:linear-gradient(90deg,transparent,#eafff5,transparent);animation-duration:.85s}
   @keyframes flow{to{left:120%}}
-  .hud{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:4px}
+  .hud{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px}
   @media(max-width:520px){.hud{grid-template-columns:repeat(2,1fr)}}
-  .hud .cell{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
-  .hud .k{font:9px var(--mono);color:var(--mut);text-transform:uppercase;letter-spacing:.5px}
-  .hud .val{font:800 20px var(--mono);color:var(--ink);margin-top:2px;line-height:1.1}
+  .hud .cell{position:relative;overflow:hidden;background:linear-gradient(180deg,#131c27,var(--panel2));
+    border:1px solid var(--line);border-radius:10px;padding:9px 10px 8px}
+  .hud .cell::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;
+    background:linear-gradient(90deg,transparent,var(--lgreen),transparent);opacity:.5}
+  .hud .k{font:9px var(--mono);color:var(--mut);text-transform:uppercase;letter-spacing:.6px}
+  .hud .val{font:800 21px var(--mono);color:var(--ink);margin-top:3px;line-height:1.1;font-variant-numeric:tabular-nums}
   .hud .val small{font-size:11px;color:var(--mut);font-weight:600}
   .hud .val.g{color:var(--blue)} .hud .val.i{color:var(--lgreen)}
   .hud .val.ok{color:var(--lgreen)} .hud .val.warn{color:var(--amber)}
