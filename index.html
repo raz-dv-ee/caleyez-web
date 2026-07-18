@@ -21,10 +21,19 @@
   .stage{position:relative;aspect-ratio:1/1;background:#000;border-radius:18px;overflow:hidden;border:1px solid var(--line)}
   video,#shot{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
   #shot{display:none;object-fit:contain;background:#000}
-  .roi{position:absolute;left:20%;top:20%;width:60%;height:60%;border:2px solid rgba(36,160,107,.9);
-    border-radius:14px;box-shadow:0 0 0 100vmax rgba(0,0,0,.35);pointer-events:none}
+  .roi{position:absolute;left:20%;top:20%;width:60%;height:60%;border:1.5px solid rgba(36,160,107,.45);
+    border-radius:14px;box-shadow:0 0 0 100vmax rgba(0,0,0,.35);pointer-events:none;transition:border-color .3s}
   .roi::after{content:'place food here';position:absolute;bottom:6px;left:0;right:0;text-align:center;
     font-size:11px;color:rgba(255,255,255,.85)}
+  /* targeting reticle corners */
+  .roi span{position:absolute;width:24px;height:24px;border:2.5px solid var(--accent)}
+  .roi span:nth-child(1){top:-1px;left:-1px;border-right:0;border-bottom:0;border-top-left-radius:13px}
+  .roi span:nth-child(2){top:-1px;right:-1px;border-left:0;border-bottom:0;border-top-right-radius:13px}
+  .roi span:nth-child(3){bottom:-1px;left:-1px;border-right:0;border-top:0;border-bottom-left-radius:13px}
+  .roi span:nth-child(4){bottom:-1px;right:-1px;border-left:0;border-top:0;border-bottom-right-radius:13px}
+  .stage.scanning .roi{border-color:rgba(63,206,143,.9)}
+  .stage.scanning .roi span{border-color:#7fe6b0;animation:cornpulse .85s ease-in-out infinite}
+  @keyframes cornpulse{0%,100%{filter:drop-shadow(0 0 0 rgba(127,230,176,0))}50%{filter:drop-shadow(0 0 7px rgba(127,230,176,.9))}}
   .stage::before{content:'';position:absolute;top:0;left:0;right:0;height:70px;z-index:2;pointer-events:none;
     background:linear-gradient(rgba(4,10,16,.6),transparent)}
   .brandmark{position:absolute;top:11px;left:13px;z-index:3;display:flex;align-items:center;gap:8px;pointer-events:none}
@@ -68,20 +77,22 @@
   .macros{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
   .macro{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:8px;text-align:center}
   .macro b{display:block;font-size:18px} .macro span{font-size:11px;color:var(--mut)}
-  /* ---------- animated macro rings (cinematic result reveal) ---------- */
-  .rings{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
-  .ring{position:relative;width:88px;margin:0 auto;text-align:center}
-  .ring svg{width:88px;height:88px;display:block}
-  .ring .trk{fill:none;stroke:var(--panel2);stroke-width:7}
-  .ring .prg{fill:none;stroke:var(--rc);stroke-width:7;stroke-linecap:round;
-    transform:rotate(-90deg);transform-origin:50% 50%;
-    transition:stroke-dashoffset 1s cubic-bezier(.2,.8,.2,1);
-    filter:drop-shadow(0 0 5px color-mix(in srgb, var(--rc) 55%, transparent))}
-  .ring .rc{position:absolute;inset:0 0 20px;display:flex;flex-direction:column;align-items:center;justify-content:center}
-  .ring .rc b{font:800 17px/1 var(--mono,ui-monospace,monospace);color:var(--ink)}
-  .ring .rc i{font-style:normal;font-size:9px;color:var(--mut);margin-top:2px}
-  .ring .rl{font-size:11px;color:var(--mut);margin-top:2px;text-transform:capitalize}
-  .result.show .ring .prg{animation:ringpop .0s}
+  /* ---------- hero calorie ring (one bold focal moment) ---------- */
+  .hero-wrap{grid-column:1/-1;text-align:center}
+  .hero-ring{position:relative;width:216px;max-width:66vw;margin:16px auto 8px}
+  .hero-ring svg{width:100%;display:block;overflow:visible}
+  .hr-bg{fill:none;stroke:var(--panel2);stroke-width:13}
+  .hr-arc{fill:none;stroke-width:13;stroke-linecap:round;transform-origin:100px 100px;
+    transition:stroke-dashoffset 1.05s cubic-bezier(.2,.8,.2,1);
+    filter:drop-shadow(0 0 7px color-mix(in srgb, var(--ac) 65%, transparent))}
+  .hr-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 18px}
+  .hr-kcal{font:800 46px/1 system-ui,'Segoe UI',sans-serif;color:var(--ink);letter-spacing:-1px}
+  .hr-unit{font-size:12px;color:var(--mut);letter-spacing:3px;margin-top:3px;font-weight:700}
+  .hr-sub{font-size:11px;color:var(--mut);margin-top:7px;line-height:1.35}
+  .hr-legend{display:flex;justify-content:center;gap:16px;flex-wrap:wrap;margin-top:2px;font-size:12.5px}
+  .hr-legend span{display:inline-flex;align-items:center;gap:6px;color:var(--mut)}
+  .hr-legend i{width:9px;height:9px;border-radius:3px;display:inline-block}
+  .hr-legend b{color:var(--ink);font-weight:700}
   @keyframes revealup{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
   .reveal{opacity:0;animation:revealup .5s cubic-bezier(.2,.8,.2,1) forwards;animation-delay:calc(var(--ri,0) * .09s)}
   #rFood.pop{animation:foodpop .5s cubic-bezier(.2,.9,.2,1)}
@@ -278,7 +289,7 @@
   <div class="stage" id="stage">
     <video id="cam" autoplay playsinline muted></video>
     <img id="shot">
-    <div class="roi"></div>
+    <div class="roi"><span></span><span></span><span></span><span></span></div>
     <div class="brandmark">
       <svg viewBox="0 0 68 58" width="30" height="26" style="flex:none">
         <path d="M6 27 Q34 6 62 27" fill="none" stroke="#3fce8f" stroke-width="4.2" stroke-linecap="round"/>
@@ -707,28 +718,31 @@ function microsHTML(nut,grams){
   return '<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px" class="muted">'+
     Object.keys(m).map(k=>`<span>${MICRO_LABEL[k]||k}: <b style="color:var(--ink)">${m[k]}</b></span>`).join('')+'</div>';
 }
-const RING_C=201.06;   // 2*pi*32
-// Circular macro gauges: each ring fills to that macro's share of the meal's macro mass.
-function macroRings(nut, r){
-  const items=[['pro','protein','#58a6ff'],['carb','carbs','#d29922'],['fat','fat','#46c98d']];
-  const grams=items.map(([k])=>Math.max(0, (nut[k]||0)*r));
-  const total=grams.reduce((a,b)=>a+b,0)||1;
-  return '<div class="rings">'+items.map(([k,l,col],idx)=>{
-    const frac=Math.min(1, grams[idx]/total);
-    return `<div class="ring reveal" style="--rc:${col};--ri:${idx+1}">
-      <svg viewBox="0 0 88 88"><circle class="trk" cx="44" cy="44" r="32"/>
-      <circle class="prg" cx="44" cy="44" r="32" data-frac="${frac.toFixed(4)}"
-        style="stroke-dasharray:${RING_C};stroke-dashoffset:${RING_C}"/></svg>
-      <div class="rc"><b>${grams[idx].toFixed(0)}</b><i>grams</i></div><div class="rl">${l}</div></div>`;
-  }).join('')+'</div>';
-}
-function fillRings(container){
-  // setTimeout (not rAF) so the fill still triggers if the tab is briefly backgrounded;
-  // the empty offset is already painted from the innerHTML, so this just animates to target.
-  container.querySelectorAll('.prg').forEach((el,idx)=>{
-    const frac=+el.getAttribute('data-frac')||0;
-    setTimeout(()=>{ el.style.strokeDashoffset=(RING_C*(1-frac)).toFixed(2); }, 90+idx*130);
+// One bold calorie ring: big kcal in the centre, protein/carbs/fat as three arcs sweeping the rim.
+const HR_R=86, HR_C=2*Math.PI*86, HR_GAP=12;   // gap (px of circumference) between arcs
+function heroRing({kcal, pro, carb, fat, sub}){
+  const items=[['#58a6ff',pro,'protein'],['#d29922',carb,'carbs'],['#46c98d',fat,'fat']];
+  const total=(pro+carb+fat)||1;
+  let cum=0, arcs='';
+  items.forEach(([col,val])=>{
+    const frac=Math.max(0,(val||0))/total, len=Math.max(0.001, frac*HR_C-HR_GAP), rot=cum*360-90;
+    arcs+=`<circle class="hr-arc" r="${HR_R}" cx="100" cy="100" stroke="${col}" data-len="${len.toFixed(2)}"`+
+      ` style="--ac:${col};transform:rotate(${rot.toFixed(2)}deg);stroke-dasharray:${len.toFixed(2)} ${(HR_C-len).toFixed(2)};stroke-dashoffset:${len.toFixed(2)}"/>`;
+    cum+=frac;
   });
+  const leg=items.map(([col,val,l])=>`<span><i style="background:${col}"></i><b>${(val||0).toFixed(0)}g</b> ${l}</span>`).join('');
+  return `<div class="hero-wrap"><div class="hero-ring reveal" data-kcal="${Math.round(kcal)||0}">
+    <svg viewBox="0 0 200 200"><circle class="hr-bg" r="${HR_R}" cx="100" cy="100"/>${arcs}</svg>
+    <div class="hr-center"><div class="hr-kcal">0</div><div class="hr-unit">KCAL</div>${sub?`<div class="hr-sub">${sub}</div>`:''}</div>
+  </div><div class="hr-legend reveal" style="--ri:2">${leg}</div></div>`;
+}
+function animateHeroRing(root){
+  const hr=root.querySelector('.hero-ring'); if(!hr) return;
+  const kc=+hr.getAttribute('data-kcal')||0, num=hr.querySelector('.hr-kcal');
+  hr.querySelectorAll('.hr-arc').forEach((el,idx)=>setTimeout(()=>{ el.style.strokeDashoffset='0'; }, 120+idx*150));
+  const t0=performance.now(), dur=950;
+  (function tick(t){ const p=Math.min(1,(t-t0)/dur); num.textContent=Math.round(kc*(1-Math.pow(1-p,3))); if(p<1) requestAnimationFrame(tick); })(performance.now());
+  setTimeout(()=>{ num.textContent=kc; }, dur+120);     // guarantee the final value even if rAF was throttled (background tab)
 }
 function render({chosen, routeI, pIsr, confident, abstain, usedGemini, infMs}){
   const pretty=s=>s.replace(/_/g,' ');
@@ -757,11 +771,12 @@ function render({chosen, routeI, pIsr, confident, abstain, usedGemini, infMs}){
   if(nut && g>0){
     const r=g/100, kc=Math.round(nut.kcal*r);
     const tag = (selSub?selSub:'') + (selPrep&&selPrep!=='raw'?(selSub?' · ':'')+selPrep.replace(/_/g,' '):'');
-    const tail=`<small>kcal · ${g} g${tag?' · '+tag:''}</small>`;
-    $("rKcal").innerHTML=`${kc} ${tail}`;                        // always set final value (robust if rAF throttled)
-    if(animateKcal){ countUp($("rKcal"), kc, tail); animateKcal=false; }   // then animate for flair
-    $("rMacros").innerHTML=macroRings(nut, r);
-    fillRings($("rMacros"));
+    $("rKcal").innerHTML='';                                     // the calorie number now lives in the hero ring
+    const sub=`${g} g${tag?' · '+tag:''}`;
+    $("rMacros").innerHTML=heroRing({kcal:kc, pro:nut.pro*r, carb:nut.carb*r, fat:nut.fat*r, sub});
+    if(animateKcal){ animateHeroRing($("rMacros")); animateKcal=false; }
+    else{ const hr=$("rMacros").querySelector('.hero-ring');                 // sub/prep change: fill instantly, no re-animate
+      if(hr){ hr.querySelectorAll('.hr-arc').forEach(el=>el.style.strokeDashoffset='0'); hr.querySelector('.hr-kcal').textContent=kc; } }
     $("rMicros").innerHTML=microsHTML(nut, g);
   }else{
     $("rKcal").innerHTML = g>0 ? `<small>no local nutrition for “${pretty(chosen.label)}”</small>`
@@ -933,18 +948,19 @@ function renderHistory(){
     : '';
   const title={today:'Today',week:'Last 7 days',month:'Last 30 days'}[PERIOD];
   $("histTitle").textContent=title;
-  $("histTotal").textContent='🔥 '+t.kcal+' kcal';
-  const t2=CZTrack.tdee(PROFILE||{});
-  if(t2){
-    const days={today:1,week:7,month:30}[PERIOD];
-    const burned=t2*days, net=t.kcal-burned;
-    $("histTotal").textContent=`🔥 ${t.kcal} kcal · burned ~${burned} · net ${net>0?'+':''}${net}`;
-  }
   ['TODAY','WEEK','MONTH'].forEach(k=>{
     const b=$("p"+k); if(b) b.style.opacity = (k.toLowerCase()===PERIOD)?'1':'.45';
   });
-  $("histMacros").innerHTML=[['pro','protein'],['carb','carbs'],['fat','fat']]
-    .map(([k,l])=>`<div class="macro"><b>${t[k].toFixed(0)}g</b><span>${l}</span></div>`).join('');
+  const t2=CZTrack.tdee(PROFILE||{});
+  let hsub='';
+  if(t2){
+    const days={today:1,week:7,month:30}[PERIOD];
+    const burned=t2*days, net=t.kcal-burned;
+    hsub=`burned ~${burned} · net ${net>0?'+':''}${net} kcal`;
+  }
+  $("histTotal").textContent='';                                   // the big number now lives in the hero ring
+  $("histMacros").innerHTML=heroRing({kcal:t.kcal, pro:t.pro, carb:t.carb, fat:t.fat, sub:hsub});
+  animateHeroRing($("histMacros"));
   const nDays={today:1,week:7,month:30}[PERIOD];
   $("histAvg").textContent = nDays>1
     ? `average per day: ${Math.round(t.kcal/nDays)} kcal · ${(t.pro/nDays).toFixed(1)}g protein · `+
