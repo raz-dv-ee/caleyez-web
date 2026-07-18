@@ -35,6 +35,46 @@
   .pipe canvas,.pipe img{width:96px;height:96px;object-fit:cover;border-radius:8px;border:1px solid var(--line);background:#000;display:block}
   .pipe figcaption{font:10px var(--mono);color:var(--mut);margin-top:4px}
   .pipe .arrow{color:var(--mut);font-size:18px;flex:none}
+
+  /* ---------- hero: live system pipeline ---------- */
+  .hero{background:
+      radial-gradient(120% 100% at 0% 0%, rgba(77,157,224,.10), transparent 45%),
+      radial-gradient(120% 100% at 100% 0%, rgba(36,160,107,.12), transparent 45%),
+      var(--panel);
+    border:1px solid var(--line);border-radius:14px;padding:14px 12px 12px;
+    box-shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 16px 40px -24px #000}
+  .hero-head{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .hero-title{font-family:var(--brand);font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--lgreen)}
+  .hero-tag{margin-left:auto;font:10px var(--mono);color:var(--mut);border:1px solid var(--line);
+    border-radius:999px;padding:3px 9px}
+  .hero-tag.live{color:#04121a;background:var(--lgreen);border-color:var(--lgreen);font-weight:700}
+  .flow{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:2px 0 8px}
+  .stg{flex:1 0 96px;min-width:96px;position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;
+    padding:2px 4px;opacity:.35;transform:translateY(3px);transition:opacity .35s ease, transform .35s ease}
+  .stg.on{opacity:1;transform:none}
+  .stg .dot{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+    background:var(--panel2);border:1px solid var(--line);font-size:19px;position:relative;transition:box-shadow .35s ease, border-color .35s ease}
+  .stg.on .dot{border-color:var(--nodecol,var(--lgreen));box-shadow:0 0 0 1px var(--nodecol,var(--lgreen)), 0 0 22px -4px var(--nodecol,var(--lgreen))}
+  .stg.pulse .dot::after{content:'';position:absolute;inset:-1px;border-radius:12px;border:2px solid var(--nodecol,var(--lgreen));
+    animation:stgpulse .7s ease-out}
+  @keyframes stgpulse{from{opacity:.9;transform:scale(1)}to{opacity:0;transform:scale(1.5)}}
+  .stg .nm{font:600 10px var(--mono);color:var(--ink);text-align:center;line-height:1.25}
+  .stg .sub{font:9px var(--mono);color:var(--mut);text-align:center;line-height:1.2}
+  .stg .ms{font:700 12px var(--mono);color:var(--nodecol,var(--lgreen))}
+  .conn{flex:0 0 20px;align-self:flex-start;margin-top:23px;height:2px;border-radius:2px;background:var(--line);position:relative;overflow:hidden}
+  .conn.on{background:linear-gradient(90deg,var(--line),var(--lgreen))}
+  .conn.on::after{content:'';position:absolute;top:0;left:-40%;width:40%;height:100%;
+    background:linear-gradient(90deg,transparent,var(--lgreen),transparent);animation:flow 1s linear infinite}
+  @keyframes flow{to{left:120%}}
+  .hud{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:4px}
+  @media(max-width:520px){.hud{grid-template-columns:repeat(2,1fr)}}
+  .hud .cell{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+  .hud .k{font:9px var(--mono);color:var(--mut);text-transform:uppercase;letter-spacing:.5px}
+  .hud .val{font:800 20px var(--mono);color:var(--ink);margin-top:2px;line-height:1.1}
+  .hud .val small{font-size:11px;color:var(--mut);font-weight:600}
+  .hud .val.g{color:var(--blue)} .hud .val.i{color:var(--lgreen)}
+  .hud .val.ok{color:var(--lgreen)} .hud .val.warn{color:var(--amber)}
+  .hero-foot{font:10px var(--mono);color:var(--mut);margin-top:10px;line-height:1.4}
   .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   @media(max-width:560px){.two{grid-template-columns:1fr}.calgrid{grid-template-columns:1fr !important}}
   .expert{border-top:3px solid var(--blue)} .expert.isr{border-top-color:var(--green)}
@@ -105,6 +145,16 @@
   <div class="row">
     <button class="btn" id="analyze" disabled>Capture &amp; trace</button>
     <button class="btn ghost" id="retake" style="display:none;flex:0 0 auto">↺ live</button>
+  </div>
+
+  <div id="hero" class="hero">
+    <div class="hero-head">
+      <span class="hero-title">Live system pipeline</span>
+      <span class="hero-tag" id="heroTag">sample trace</span>
+    </div>
+    <div class="flow" id="flow"></div>
+    <div class="hud" id="hud"></div>
+    <div class="hero-foot">One photo, on-device: two CNNs and a gradient-boosted arbiter, no server in the loop. Capture &amp; trace for live numbers.</div>
   </div>
 
   <div id="out">
@@ -253,23 +303,85 @@ async function analyze(){
     c.getContext('2d').drawImage(v,0,0);$("shot").src=c.toDataURL('image/jpeg',.92);$("shot").style.display='block';
     $("cam").style.display='none';$("retake").style.display='';frozen=true;await new Promise(r=>{$("shot").onload=r;if($("shot").complete)r();});}
   $("analyze").textContent='tracing…';
+  const tp0=performance.now();
   const cg=roiCanvas(G_SZ),ci=roiCanvas(I_SZ);
   const geom=roiGeom(), prep=prepStats(cg,G_SZ);   // real numbers for the preprocessing trace
-  const t0=performance.now();
+  const prepMs=performance.now()-tp0;
+  const tg0=performance.now();
   const tG=tensor(cg,G_SZ), go=await G.run({[G.inputNames[0]]:tG});
+  const gMs=performance.now()-tg0;
+  const ti0=performance.now();
   const tI=tensor(ci,I_SZ), io=await I.run({[I.inputNames[0]]:tI});
-  const infMs=Math.round(performance.now()-t0);
+  const iMs=performance.now()-ti0;
   const g=feats(Object.values(go)[0].data,namesG,null), i=feats(Object.values(io)[0].data,namesI,iBg);
   disposeT(tG,tI,go,io);   // free WASM/GPU tensor memory (not reclaimed by JS GC) - avoids OOM over many captures
-  $("epTag").innerHTML=`WASM · fp32-accurate · <b style="color:var(--lgreen)">⚡ ${infMs} ms</b> on-device (both CNNs + arbiter, no cloud)`;
   const f=[g.conf[0],g.conf[1],g.conf[2],g.conf[3],g.conf[4],g.entropy,g.margin,
     i.conf[0],i.conf[1],i.conf[2],i.conf[3],i.conf[4],i.entropy,i.margin,i.pbg,
     g.conf[0]-i.conf[0],g.conf[0]/(i.conf[0]+1e-6),i.entropy-g.entropy,g.margin-i.margin,((g.conf[0]<0.5)&&(i.conf[0]<0.5))?1:0];
-  const pIsr=arbiterP(f), routeI=pIsr>=0.5, chosen=routeI?i:g, gate=routeI?GATE_I:GATE_G;
+  const ta0=performance.now();
+  const pIsr=arbiterP(f);
+  const arbMs=performance.now()-ta0;
+  const routeI=pIsr>=0.5, chosen=routeI?i:g, gate=routeI?GATE_I:GATE_G;
+  const infMs=Math.round(gMs+iMs+arbMs);
+  $("epTag").innerHTML=`WASM · fp32-accurate · <b style="color:var(--lgreen)">⚡ ${infMs} ms</b> on-device (both CNNs + arbiter, no cloud)`;
   const bothUnsure=g.conf[0]<BOTH_UNSURE&&i.conf[0]<BOTH_UNSURE, arbUnsure=Math.abs(pIsr-0.5)<ARB_BAND,
         abstain=routeI&&chosen.label==='background', confident=chosen.conf[0]>=gate&&!bothUnsure&&!arbUnsure&&!abstain;
-  renderAll({cg,ci,g,i,f,pIsr,routeI,chosen,gate,bothUnsure,arbUnsure,abstain,confident,geom,prep});
+  const timing={prepMs,gMs,iMs,arbMs,infMs};
+  renderPipeline({live:true, timing, pIsr, routeI, chosen, confident, abstain,
+    gLabel:g.label, iLabel:i.label, gConf:g.conf[0], iConf:i.conf[0]});
+  renderAll({cg,ci,g,i,f,pIsr,routeI,chosen,gate,bothUnsure,arbUnsure,abstain,confident,geom,prep,timing});
   $("analyze").textContent='Capture & trace';
+}
+
+// Hero: the whole on-device pipeline as a flow that lights up stage by stage with real timings.
+const PIPE_STAGES=[
+  {icon:'📷', nm:'Capture',     sub:'ROI crop',    col:'var(--lgreen)', ms:null},
+  {icon:'▦',  nm:'Preprocess',  sub:'320² · /255', col:'var(--lgreen)', ms:'prepMs'},
+  {icon:'🌐', nm:'Global CNN',  sub:'132-class',   col:'var(--blue)',   ms:'gMs'},
+  {icon:'🍽', nm:'Israeli CNN', sub:'13-class',    col:'var(--lgreen)', ms:'iMs'},
+  {icon:'⚖',  nm:'Arbiter',     sub:'XGBoost',     col:'var(--amber)',  ms:'arbMs'},
+  {icon:'🍎', nm:'Nutrition',   sub:'USDA / local',col:'var(--lgreen)', ms:null}
+];
+let pipeAnim=null;
+function renderPipeline(t){
+  const flow=$("flow"), hud=$("hud"), tag=$("heroTag"); if(!flow) return;
+  const tm=t.timing||{};
+  flow.innerHTML=''; const els=[];
+  PIPE_STAGES.forEach((s,idx)=>{
+    if(idx>0){ const c=document.createElement('div'); c.className='conn'; flow.appendChild(c); }
+    const el=document.createElement('div'); el.className='stg'; el.style.setProperty('--nodecol', s.col);
+    const v = s.ms!=null && typeof tm[s.ms]==='number' ? Math.max(1,Math.round(tm[s.ms])) : null;
+    el.innerHTML=`<div class="dot">${s.icon}</div><div class="nm">${s.nm}</div>`+
+      `<div class="sub">${s.sub}</div><div class="ms">${v!=null?v+' ms':'&nbsp;'}</div>`;
+    flow.appendChild(el); els.push(el);
+  });
+  const rc=t.routeI?'i':'g';
+  const label=t.chosen?pretty(t.chosen.label):(t.chosenLabel||'-');
+  const decision=t.abstain?'ABSTAIN':(t.confident?label:'UNSURE');
+  hud.innerHTML=[
+    {k:'on-device latency', v:`${Math.round(tm.infMs||0)}<small> ms</small>`, c:''},
+    {k:'P(israeli)', v:(+t.pIsr).toFixed(3), c:rc},
+    {k:'route', v:t.routeI?'ISRAELI':'GLOBAL', c:rc},
+    {k:'decision', v:decision, c:t.confident?'ok':'warn'}
+  ].map(x=>`<div class="cell"><div class="k">${x.k}</div><div class="val ${x.c}">${x.v}</div></div>`).join('');
+  tag.textContent=t.live?'live capture':'sample trace'; tag.classList.toggle('live', !!t.live);
+  const conns=[...flow.querySelectorAll('.conn')];
+  if(pipeAnim) clearTimeout(pipeAnim);
+  let k=0;
+  (function seq(){
+    if(k>=els.length) return;
+    els[k].classList.add('on','pulse');
+    const cur=els[k]; setTimeout(()=>cur.classList.remove('pulse'),700);
+    if(k>0) conns[k-1].classList.add('on');
+    k++;
+    if(k<els.length) pipeAnim=setTimeout(seq,260);
+    else pipeAnim=setTimeout(()=>conns.forEach(c=>c.classList.remove('on')),1500);
+  })();
+}
+// sample trace at rest (documented p50 latency breakdown), so the console is populated and honest before a capture
+function seedPipeline(){
+  renderPipeline({live:false, timing:{prepMs:7.7,gMs:76,iMs:61,arbMs:2.6,infMs:150},
+    pIsr:0.12, routeI:false, confident:true, abstain:false, chosenLabel:'pizza'});
 }
 
 function bars(exp){return exp.top5.map(([n,c])=>`<div class="bar"><span class="lab">${pretty(n)}</span>
@@ -535,5 +647,6 @@ async function startCam(){try{stream=await navigator.mediaDevices.getUserMedia({
 function retake(){frozen=false;$("shot").style.display='none';$("cam").style.display='';$("retake").style.display='none';$("out").style.display='none';}
 $("retake").onclick=retake;
 $("analyze").onclick=()=>{ if(frozen&&$("out").style.display==='flex'){retake();} analyze().catch(e=>{$("analyze").textContent='Capture & trace';alert(e.message);}); };
+seedPipeline();   // populate the hero pipeline with the sample trace immediately
 boot();
 </script>
