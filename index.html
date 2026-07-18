@@ -744,7 +744,10 @@ function effNut(label){
   const base=(selSub && allSubs[selSub]) ? allSubs[selSub] : NUTR[label];
   if(!base) return null;
   const o={kcal:base.kcal, pro:base.pro, carb:base.carb, fat:base.fat};
-  CZTrack.MICRO_KEYS.forEach(k=>{ if(typeof base[k]==='number') o[k]=base[k]; });
+  // Micros from the chosen sub/recipe if it has any; otherwise fall back to the base food's vitamins.
+  // (Sub-foods like bell-pepper colours only carry macros, so without this a red pepper would show no vitamins.)
+  const microSrc = CZTrack.MICRO_KEYS.some(k=>typeof base[k]==='number') ? base : NUTR[label];
+  if(microSrc) CZTrack.MICRO_KEYS.forEach(k=>{ if(typeof microSrc[k]==='number') o[k]=microSrc[k]; });
   const cm=COOKMULT[selPrep];
   if(selPrep && selPrep!=='raw' && cm){ o.kcal=o.kcal*cm.factor; o.fat=o.fat+cm.added_fat_g; }
   return o;
