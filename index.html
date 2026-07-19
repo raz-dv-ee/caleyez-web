@@ -814,6 +814,13 @@ function microsHTML(nut,grams){
   if(!m) return '<div class="muted" style="margin-top:6px;font-size:12px">no vitamin data for this food</div>';
   return microsBlock(m, 'Vitamins & minerals', true);
 }
+// Micros for a logged meal: use what was stored, else compute live from the food table x grams.
+// This backfills older rows (and sub-foods like bell-pepper) that were saved without micros.
+function rowMicros(r){
+  if(r.micros && Object.keys(r.micros).length) return r.micros;
+  const base=NUTR[r.food];
+  return base ? CZTrack.scaleMicros(base, r.grams) : null;
+}
 // One bold calorie ring: big kcal in the centre, protein/carbs/fat as three arcs sweeping the rim.
 const HR_R=86, HR_C=2*Math.PI*86, HR_GAP=12;   // gap (px of circumference) between arcs
 function heroRing({kcal, pro, carb, fat, sub, targets}){
@@ -1059,7 +1066,7 @@ function renderHistory(){
         `<div class="logrow"><div class="lh"><span class="lf">${esc(m.food).replace(/_/g,' ')}
          <span class="lsub">x${m.count}</span></span><span class="lk">${Math.round(m.kcal)} kcal</span></div></div>`).join('')
     : '';
-  $("histMicros").innerHTML = microsBlock(CZTrack.sumMicros(rows), 'Vitamins & minerals this period', false);
+  $("histMicros").innerHTML = microsBlock(CZTrack.sumMicros(rows.map(r=>({micros:rowMicros(r)}))), 'Vitamins & minerals this period', false);
   const title={today:'Today',week:'Last 7 days',month:'Last 30 days'}[PERIOD];
   $("histTitle").textContent=title;
   ['TODAY','WEEK','MONTH'].forEach(k=>{
@@ -1108,9 +1115,10 @@ function renderHistory(){
         <span><i style="background:var(--blue)"></i>${r.pro}g protein</span>
         <span><i style="background:var(--amber)"></i>${r.carb}g carbs</span>
         <span><i style="background:var(--accent)"></i>${r.fat}g fat</span></div>`:'';
-    const detail = r.micros
-      ? microGridHTML(r.micros)
-      : '<div class="muted" style="font-size:12px;padding:4px 0 8px">no vitamin data stored for this meal</div>';
+    const mic = rowMicros(r);
+    const detail = mic
+      ? microGridHTML(mic)
+      : '<div class="muted" style="font-size:12px;padding:4px 0 8px">no vitamin data for this food</div>';
     return `<details class="logd"><summary class="logrow"><div class="lh">
         <span class="lf">${esc(r.food).replace(/_/g,' ')} <span class="lsub">${r.sub?esc(r.sub)+' · ':''}${r.method?esc(r.method).replace(/_/g,' ')+' · ':''}${r.grams}g · ${tm}</span></span>
         <span class="lk">${r.kcal!=null?r.kcal+' kcal':'-'}</span></div>${macros}</summary>
