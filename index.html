@@ -520,9 +520,10 @@ async function ensureNutrition(label){
   if(!USDA_PROXY){ NUTR[label]=null; return; }
   try{
     const r=await fetch(USDA_PROXY+'?q='+encodeURIComponent(label.replace(/_/g,' ')));
-    const j=r.ok ? await r.json() : null;
-    NUTR[label]=(j && j.kcal!=null) ? j : null;
-  }catch(e){ NUTR[label]=null; }
+    if(!r.ok) return;                                 // transient server/network error: leave UNcached so a retake retries
+    const j=await r.json();
+    NUTR[label]=(j && j.kcal!=null) ? j : null;       // cache only a real answer (a hit, or a genuine "USDA has nothing")
+  }catch(e){ /* network/parse failure: leave uncached so a later attempt can still succeed (do NOT poison the cache with null) */ }
 }
 
 // Gemini vision fallback (via the Worker; key stays server-side). Sends the central ROI, like the
@@ -594,12 +595,9 @@ function sfxSuccess(){ tone(660,0.12,'sine',0.06,0); tone(988,0.16,'sine',0.06,0
 function sfxReady(){ tone(523,0.09,'triangle',0.045,0); }
 const buzz=p=>{ try{ navigator.vibrate && navigator.vibrate(p); }catch(e){} };
 function updSound(){ $("soundBtn").textContent = SOUND?'🔊':'🔇'; }
-// animated count-up for the calorie number (runs once per fresh result, not on grams drag)
-let animateKcal=false, _kcalTween=0;
-function countUp(el, to, tail){ cancelAnimationFrame(_kcalTween); const t0=performance.now(), dur=420;
-  const step=now=>{ const k=Math.min(1,(now-t0)/dur), v=Math.round(to*(1-Math.pow(1-k,3)));
-    el.innerHTML=`${v} ${tail}`; if(k<1) _kcalTween=requestAnimationFrame(step); };
-  _kcalTween=requestAnimationFrame(step); }
+// `animateKcal` gates the one-shot count-up + arc sweep on a fresh result; a grams drag re-renders
+// without re-animating. The count-up itself now lives in animateHeroRing().
+let animateKcal=false;
 
 // Stream a model file so the splash can show real download progress (first load is ~50 MB; on
 // conference wifi a determinate bar beats a blank splash). Falls back to a plain fetch if no stream.
@@ -839,7 +837,7 @@ function heroRing({kcal, pro, carb, fat, sub, targets}){
   }).join('');
   return `<div class="hero-wrap"><div class="hero-ring" data-kcal="${Math.round(kcal)||0}">
     <svg viewBox="0 0 200 200"><circle class="hr-bg" r="${HR_R}" cx="100" cy="100"/>${arcs}</svg>
-    <div class="hr-center"><div class="hr-kcal">0</div><div class="hr-unit">KCAL</div>${sub?`<div class="hr-sub">${sub}</div>`:''}</div>
+    <div class="hr-center"><div class="hr-kcal">0</div><div class="hr-unit">KCAL</div>${sub?`<div class="hr-sub">${esc(sub)}</div>`:''}</div>
   </div><div class="hr-legend">${leg}</div></div>`;
 }
 function animateHeroRing(root){

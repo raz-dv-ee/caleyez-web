@@ -151,10 +151,14 @@ const json = (obj, headers) => new Response(JSON.stringify(obj), { headers });
 const GEMINI_MODEL = "gemini-flash-latest";
 async function geminiIdentify(req, env, cors) {
   if (!env.GEMINI_KEY) return json({ food: null, error: "no key" }, cors);
+  // Abuse cap: the Worker URL is in a public repo, so anyone could POST oversized images to burn the
+  // Gemini quota. The real ROI JPEG is ~15-50 KB; reject anything far larger BEFORE parsing the body.
+  if (+(req.headers.get("content-length") || 0) > 400_000) return json({ food: null, error: "too large" }, cors);
   let dataUrl;
   try { dataUrl = (await req.json()).image || ""; } catch (e) { return json({ food: null }, cors); }
   const m = /^data:(image\/\w+);base64,(.+)$/s.exec(dataUrl);
   if (!m) return json({ food: null }, cors);
+  if (m[2].length > 300_000) return json({ food: null, error: "too large" }, cors);  // ~225 KB of base64: generous headroom over a real ROI, still bounds cost per request
   try {
     const api = "https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_MODEL +
       ":generateContent?key=" + env.GEMINI_KEY;
